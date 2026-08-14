@@ -15,6 +15,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [isCredentialError, setIsCredentialError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [resetMode, setResetMode] = useState(false);
   const [resetSent, setResetSent] = useState(false);
@@ -41,6 +42,7 @@ export default function LoginPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    setIsCredentialError(false);
 
     const parsed = loginSchema.safeParse({ email, password });
     if (!parsed.success) {
@@ -53,7 +55,9 @@ export default function LoginPage() {
       const profile = await login(parsed.data.email, parsed.data.password);
       router.push(getPostAuthRedirect(profile));
     } catch (err) {
-      setError(mapFirebaseError(err));
+      const { message, isCredentialIssue } = mapFirebaseError(err);
+      setError(message);
+      setIsCredentialError(isCredentialIssue);
     } finally {
       setSubmitting(false);
     }
@@ -125,9 +129,18 @@ export default function LoginPage() {
         )}
 
         {error && (
-          <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-            {error}
-          </p>
+          <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+            <p>{error}</p>
+            {isCredentialError && (
+              <p className="mt-1">
+                New here?{" "}
+                <Link href="/register" className="font-medium underline">
+                  Create an account
+                </Link>{" "}
+                instead.
+              </p>
+            )}
+          </div>
         )}
 
         <button
@@ -149,11 +162,31 @@ export default function LoginPage() {
   );
 }
 
-function mapFirebaseError(err: unknown): string {
+function mapFirebaseError(err: unknown): { message: string; isCredentialIssue: boolean } {
   const code = (err as { code?: string })?.code ?? "";
+
+  // Deliberately vague across all three - never confirm or deny whether an
+  // account exists for a given email, to avoid account enumeration.
   if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") {
-    return "Incorrect email or password.";
+    return { message: "Incorrect email or password.", isCredentialIssue: true };
   }
-  if (code === "auth/too-many-requests") return "Too many attempts. Please wait a moment and try again.";
-  return "Something went wrong logging in. Please try again.";
+  if (code === "auth/too-many-requests") {
+    return {
+      message: "Too many attempts. Please wait a moment and try again.",
+      isCredentialIssue: false,
+    };
+  }
+  if (code === "auth/user-disabled") {
+    return {
+      message: "This account has been disabled. Contact an administrator if you think that's a mistake.",
+      isCredentialIssue: false,
+    };
+  }
+  if (code === "auth/network-request-failed") {
+    return {
+      message: "Network error - check your connection and try again.",
+      isCredentialIssue: false,
+    };
+  }
+  return { message: "Something went wrong logging in. Please try again.", isCredentialIssue: true };
 }
