@@ -84,6 +84,9 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      const ownerSnap = await tx.get(db.collection("users").doc(item.ownerId));
+      const ownerName = ownerSnap.exists ? (ownerSnap.data() as { name?: string }).name ?? "Neighbor" : "Neighbor";
+
       const now = FieldValue.serverTimestamp();
       const newBooking: Omit<Booking, "createdAt" | "updatedAt"> & {
         createdAt: FirebaseFirestore.FieldValue;
@@ -99,6 +102,9 @@ export async function POST(req: NextRequest) {
         note: note ?? "",
         state: "REQUESTED",
         conditionBefore: item.condition,
+        itemName: item.name,
+        ownerName,
+        borrowerName: profile.name,
         createdAt: now,
         updatedAt: now,
       };

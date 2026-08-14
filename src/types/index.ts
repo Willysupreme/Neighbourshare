@@ -101,6 +101,16 @@ export interface Booking {
   state: BookingState;
   conditionBefore?: ItemCondition;
   conditionAfter?: ItemCondition;
+  // Denormalized display snapshots, captured at booking creation time so
+  // dashboards can render item/party names without an extra Firestore
+  // read per row. MVP tradeoff: if a user later renames an item or edits
+  // their display name, older bookings still show the name as it was at
+  // request time - documented as acceptable staleness, not a bug, since
+  // these are historical display labels, not the source of truth for
+  // ownership/identity (ownerId/borrowerId/itemId remain authoritative).
+  itemName: string;
+  ownerName: string;
+  borrowerName: string;
   createdAt: string;
   updatedAt: string;
 }

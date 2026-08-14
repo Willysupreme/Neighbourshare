@@ -205,12 +205,15 @@ function BookingRow({
   role: "owner" | "borrower";
   onChanged: () => void;
 }) {
+  const otherPartyLabel = role === "owner" ? `Requested by ${booking.borrowerName}` : `Owned by ${booking.ownerName}`;
+
   return (
     <div className="card mb-2">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-medium">
-            {booking.startDate} → {booking.endDate}
+          <p className="font-medium">{booking.itemName}</p>
+          <p className="text-sm text-neutral-600">
+            {otherPartyLabel} · {booking.startDate} → {booking.endDate}
           </p>
           {booking.note && <p className="text-xs text-neutral-500">&ldquo;{booking.note}&rdquo;</p>}
         </div>

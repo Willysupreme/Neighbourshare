@@ -34,7 +34,7 @@ function BookingDetailContent() {
     <div className="mx-auto max-w-2xl px-4 py-10">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">
-          Booking {booking.startDate} → {booking.endDate}
+          {booking.itemName} · {booking.startDate} → {booking.endDate}
         </h1>
         <span className={`badge ${STATE_COLORS[booking.state]}`}>{STATE_LABELS[booking.state]}</span>
       </div>

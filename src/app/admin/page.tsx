@@ -140,15 +140,26 @@ function AdminContent() {
 
           {tab === "bookings" && (
             <Table
-              headers={["Item", "Dates", "State"]}
-              rows={bookings.map((b) => [b.itemId, `${b.startDate} → ${b.endDate}`, b.state])}
+              headers={["Item", "Borrower", "Owner", "Dates", "State"]}
+              rows={bookings.map((b) => [
+                b.itemName,
+                b.borrowerName,
+                b.ownerName,
+                `${b.startDate} → ${b.endDate}`,
+                b.state,
+              ])}
             />
           )}
 
           {tab === "reports" && (
             <Table
-              headers={["Booking", "Severity", "Status", "Description"]}
-              rows={reports.map((r) => [r.bookingId, r.severity, r.status, r.description])}
+              headers={["Item", "Severity", "Status", "Description"]}
+              rows={reports.map((r) => [
+                bookings.find((b) => b.id === r.bookingId)?.itemName ?? r.bookingId,
+                r.severity,
+                r.status,
+                r.description,
+              ])}
             />
           )}
         </div>
