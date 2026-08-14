@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { NotificationsBell } from "@/components/NotificationsBell";
 
 export function NavBar() {
   const { firebaseUser, profile, logout } = useAuth();
@@ -38,6 +39,7 @@ export function NavBar() {
                   Admin
                 </Link>
               )}
+              <NotificationsBell />
               <button
                 onClick={handleLogout}
                 className="rounded-md bg-neutral-100 px-3 py-1.5 text-neutral-700 hover:bg-neutral-200"
