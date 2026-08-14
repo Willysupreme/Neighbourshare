@@ -120,7 +120,7 @@ function ChooseNeighborhoodContent() {
 
   return (
     <div className="mx-auto max-w-md px-4 py-12">
-      <h1 className="text-2xl font-semibold">Find your neighborhood</h1>
+      <h1 className="display-heading text-3xl">Find your neighborhood</h1>
       <p className="mt-2 text-sm text-neutral-600">
         Search for your area, or add it if it&apos;s not listed yet - anyone can add a
         neighborhood NeighborShare doesn&apos;t know about.
@@ -149,7 +149,7 @@ function ChooseNeighborhoodContent() {
               type="button"
               onClick={loadStarterList}
               disabled={seeding}
-              className="mt-2 text-emerald-700 hover:underline"
+              className="mt-2 text-leaf hover:underline"
             >
               {seeding ? "Loading..." : "Load starter list of Ghana neighborhoods"}
             </button>

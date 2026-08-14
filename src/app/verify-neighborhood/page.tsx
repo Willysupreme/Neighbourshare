@@ -32,10 +32,10 @@ function VerifyForm() {
   if (profile.verificationStatus === "verified") {
     return (
       <div className="mx-auto max-w-md px-4 py-12 text-center">
-        <p className="text-lg font-medium text-emerald-700">You&apos;re already verified ✓</p>
+        <p className="text-lg font-medium text-leaf">You&apos;re already verified ✓</p>
         <button
           onClick={() => router.push("/dashboard")}
-          className="mt-4 rounded-md bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700"
+          className="mt-4 rounded-md bg-rust px-4 py-2 text-white hover:bg-rust-dark"
         >
           Go to dashboard
         </button>
@@ -77,7 +77,7 @@ function VerifyForm() {
 
   return (
     <div className="mx-auto max-w-md px-4 py-12">
-      <h1 className="text-2xl font-semibold">Verify your neighborhood</h1>
+      <h1 className="display-heading text-3xl">Verify your neighborhood</h1>
       <p className="mt-2 text-sm text-neutral-600">
         {neighborhood
           ? <>Enter the verification code shared with residents of <strong>{neighborhood.name}</strong>.</>
@@ -106,7 +106,7 @@ function VerifyForm() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full rounded-md bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+          className="w-full rounded-md bg-rust px-4 py-2 font-medium text-white hover:bg-rust-dark disabled:opacity-50"
         >
           {submitting ? "Verifying..." : "Verify"}
         </button>

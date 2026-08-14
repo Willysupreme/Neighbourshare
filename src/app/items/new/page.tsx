@@ -89,7 +89,7 @@ function NewItemForm() {
 
   return (
     <div className="mx-auto max-w-lg px-4 py-10">
-      <h1 className="text-2xl font-semibold">List an item</h1>
+      <h1 className="display-heading text-3xl">List an item</h1>
       <p className="mt-1 text-sm text-neutral-600">
         Share a tool or piece of equipment with your verified neighbors.
       </p>
@@ -202,7 +202,7 @@ function NewItemForm() {
         <button
           type="submit"
           disabled={submitting || uploading}
-          className="w-full rounded-md bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+          className="w-full rounded-md bg-rust px-4 py-2 font-medium text-white hover:bg-rust-dark disabled:opacity-50"
         >
           {uploading ? "Uploading photos..." : submitting ? "Publishing..." : "Publish listing"}
         </button>

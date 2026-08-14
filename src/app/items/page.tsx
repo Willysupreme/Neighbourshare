@@ -57,7 +57,7 @@ export default function BrowseItemsPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
-      <h1 className="text-2xl font-semibold">Browse nearby items</h1>
+      <h1 className="display-heading text-3xl">Browse nearby items</h1>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
         <input

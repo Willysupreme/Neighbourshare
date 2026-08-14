@@ -65,7 +65,7 @@ export default function LoginPage() {
 
   return (
     <div className="mx-auto max-w-md px-4 py-12">
-      <h1 className="text-2xl font-semibold">Log in</h1>
+      <h1 className="display-heading text-3xl">Log in</h1>
       <p className="mt-1 text-sm text-neutral-600">Welcome back to NeighborShare.</p>
 
       <div className="mt-6">
@@ -104,7 +104,7 @@ export default function LoginPage() {
         <button
           type="button"
           onClick={() => setResetMode((m) => !m)}
-          className="text-xs text-emerald-700 hover:underline"
+          className="text-xs text-leaf hover:underline"
         >
           Forgot password?
         </button>
@@ -112,7 +112,7 @@ export default function LoginPage() {
         {resetMode && (
           <div className="rounded-md bg-neutral-50 p-3">
             {resetSent ? (
-              <p className="text-sm text-emerald-700">
+              <p className="text-sm text-leaf">
                 If an account exists for that email, a reset link is on its way.
               </p>
             ) : (
@@ -146,7 +146,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full rounded-md bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+          className="w-full rounded-md bg-rust px-4 py-2 font-medium text-white hover:bg-rust-dark disabled:opacity-50"
         >
           {submitting ? "Logging in..." : "Log in"}
         </button>
@@ -154,7 +154,7 @@ export default function LoginPage() {
 
       <p className="mt-6 text-sm text-neutral-600">
         Don&apos;t have an account?{" "}
-        <Link href="/register" className="font-medium text-emerald-700">
+        <Link href="/register" className="font-medium text-leaf">
           Sign up
         </Link>
       </p>

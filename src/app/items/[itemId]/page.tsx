@@ -77,7 +77,7 @@ export default function ItemDetailPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
-      <h1 className="text-2xl font-semibold">{item.name}</h1>
+      <h1 className="display-heading text-3xl">{item.name}</h1>
       <p className="mt-1 text-sm text-neutral-500 capitalize">{item.category.replace("_", " ")}</p>
 
       {item.imageUrls?.length > 0 && (
@@ -142,7 +142,7 @@ export default function ItemDetailPage() {
             </p>
           )}
           {success && (
-            <p role="status" className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+            <p role="status" className="rounded-md bg-leaf-light px-3 py-2 text-sm text-leaf">
               {success}
             </p>
           )}
@@ -150,7 +150,7 @@ export default function ItemDetailPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-md bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+            className="w-full rounded-md bg-rust px-4 py-2 font-medium text-white hover:bg-rust-dark disabled:opacity-50"
           >
             {submitting ? "Sending..." : "Send request"}
           </button>

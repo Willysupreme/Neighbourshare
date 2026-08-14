@@ -64,7 +64,7 @@ function AdminContent() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
-      <h1 className="text-2xl font-semibold">Admin dashboard</h1>
+      <h1 className="display-heading text-3xl">Admin dashboard</h1>
 
       <div className="mt-6 flex gap-2 border-b border-neutral-200 text-sm">
         {(["overview", "users", "items", "bookings", "reports"] as Tab[]).map((t) => (
@@ -72,7 +72,7 @@ function AdminContent() {
             key={t}
             onClick={() => setTab(t)}
             className={`border-b-2 px-3 py-2 capitalize ${
-              tab === t ? "border-emerald-600 font-medium text-emerald-700" : "border-transparent text-neutral-500"
+              tab === t ? "border-rust font-medium text-leaf" : "border-transparent text-neutral-500"
             }`}
           >
             {t} {t === "reports" && openReports > 0 && `(${openReports})`}
@@ -102,7 +102,7 @@ function AdminContent() {
                 u.neighborhoodId,
                 <span
                   key="status"
-                  className={`badge ${u.accountStatus === "active" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}
+                  className={`badge ${u.accountStatus === "active" ? "bg-leaf-light text-leaf" : "bg-red-100 text-red-700"}`}
                 >
                   {u.accountStatus}
                 </span>,
@@ -171,7 +171,7 @@ function AdminContent() {
 function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div className="card text-center">
-      <p className="text-2xl font-semibold">{value}</p>
+      <p className="display-heading text-3xl">{value}</p>
       <p className="text-xs text-neutral-500">{label}</p>
     </div>
   );

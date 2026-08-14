@@ -41,7 +41,7 @@ export default function RegisterPage() {
 
   return (
     <div className="mx-auto max-w-md px-4 py-12">
-      <h1 className="text-2xl font-semibold">Create your account</h1>
+      <h1 className="display-heading text-3xl">Create your account</h1>
       <p className="mt-1 text-sm text-neutral-600">
         Join your neighborhood to borrow and lend tools and equipment.
       </p>
@@ -95,7 +95,7 @@ export default function RegisterPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full rounded-md bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+          className="w-full rounded-md bg-rust px-4 py-2 font-medium text-white hover:bg-rust-dark disabled:opacity-50"
         >
           {submitting ? "Creating account..." : "Create account"}
         </button>
@@ -103,7 +103,7 @@ export default function RegisterPage() {
 
       <p className="mt-6 text-sm text-neutral-600">
         Already have an account?{" "}
-        <Link href="/login" className="font-medium text-emerald-700">
+        <Link href="/login" className="font-medium text-leaf">
           Log in
         </Link>
       </p>

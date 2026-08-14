@@ -8,7 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 import { RequireAuth } from "@/context/RequireAuth";
 import { authedFetch } from "@/lib/apiClient";
 import { damageReportSchema, reviewSchema } from "@/lib/validation/schemas";
-import { STATE_LABELS, STATE_COLORS } from "@/lib/booking/labels";
+import { ClaimTag } from "@/components/ClaimTag";
 import { Booking, DamageSeverity } from "@/types";
 
 function BookingDetailContent() {
@@ -36,7 +36,7 @@ function BookingDetailContent() {
         <h1 className="text-xl font-semibold">
           {booking.itemName} · {booking.startDate} → {booking.endDate}
         </h1>
-        <span className={`badge ${STATE_COLORS[booking.state]}`}>{STATE_LABELS[booking.state]}</span>
+        <ClaimTag state={booking.state} />
       </div>
 
       {booking.conditionBefore && (
@@ -112,7 +112,7 @@ function DamageReportForm({ bookingId }: { bookingId: string }) {
             </select>
           </label>
           {error && <p className="text-sm text-red-600">{error}</p>}
-          {success && <p className="text-sm text-emerald-700">Report filed. Thank you.</p>}
+          {success && <p className="text-sm text-leaf">Report filed. Thank you.</p>}
           <button type="submit" disabled={submitting} className="btn-primary">
             {submitting ? "Submitting..." : "Submit report"}
           </button>
@@ -149,7 +149,7 @@ function ReviewForm({ bookingId }: { bookingId: string }) {
   }
 
   if (success) {
-    return <p className="card mt-6 text-sm text-emerald-700">Thanks for your review!</p>;
+    return <p className="card mt-6 text-sm text-leaf">Thanks for your review!</p>;
   }
 
   return (

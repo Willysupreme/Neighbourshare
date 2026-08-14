@@ -7,7 +7,7 @@ import { db } from "@/lib/firebase/client";
 import { useAuth } from "@/context/AuthContext";
 import { RequireAuth } from "@/context/RequireAuth";
 import { BookingActions } from "@/components/BookingActions";
-import { STATE_LABELS, STATE_COLORS } from "@/lib/booking/labels";
+import { ClaimTag } from "@/components/ClaimTag";
 import { Booking, Item } from "@/types";
 
 function DashboardContent() {
@@ -46,7 +46,7 @@ function DashboardContent() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Dashboard</h1>
+        <h1 className="display-heading text-3xl">Dashboard</h1>
         <div className="flex gap-2 rounded-md bg-neutral-100 p-1 text-sm">
           <button
             onClick={() => setView("owner")}
@@ -136,12 +136,12 @@ function OwnerView({
                     {item.name}
                   </Link>
                   <span
-                    className={`badge ${item.status === "active" ? "bg-emerald-100 text-emerald-700" : "bg-neutral-200 text-neutral-600"}`}
+                    className={`badge ${item.status === "active" ? "bg-leaf-light text-leaf" : "bg-neutral-200 text-neutral-600"}`}
                   >
                     {item.status}
                   </span>
                 </div>
-                <Link href={`/items/${item.id}/edit`} className="mt-2 inline-block text-xs text-emerald-700 hover:underline">
+                <Link href={`/items/${item.id}/edit`} className="mt-2 inline-block text-xs text-leaf hover:underline">
                   Edit listing →
                 </Link>
               </div>
@@ -217,11 +217,11 @@ function BookingRow({
           </p>
           {booking.note && <p className="text-xs text-neutral-500">&ldquo;{booking.note}&rdquo;</p>}
         </div>
-        <span className={`badge ${STATE_COLORS[booking.state]}`}>{STATE_LABELS[booking.state]}</span>
+        <ClaimTag state={booking.state} />
       </div>
       <BookingActions booking={booking} viewerRole={role} onChanged={onChanged} />
       {booking.state === "COMPLETED" && (
-        <Link href={`/dashboard/bookings/${booking.id}`} className="mt-2 inline-block text-xs text-emerald-700 hover:underline">
+        <Link href={`/dashboard/bookings/${booking.id}`} className="mt-2 inline-block text-xs text-leaf hover:underline">
           Leave a review / view details →
         </Link>
       )}
@@ -246,7 +246,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
     <div className="card text-center">
-      <p className="text-2xl font-semibold">{value}</p>
+      <p className="display-heading text-3xl">{value}</p>
       <p className="text-xs text-neutral-500">{label}</p>
     </div>
   );
@@ -257,7 +257,7 @@ function EmptyNote({ text, link, linkText }: { text: string; link?: string; link
     <div className="rounded-lg border border-dashed border-neutral-300 p-6 text-center text-sm text-neutral-500">
       <p>{text}</p>
       {link && linkText && (
-        <Link href={link} className="mt-2 inline-block font-medium text-emerald-700 hover:underline">
+        <Link href={link} className="mt-2 inline-block font-medium text-leaf hover:underline">
           {linkText}
         </Link>
       )}

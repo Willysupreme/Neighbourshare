@@ -20,7 +20,7 @@ export const STATE_COLORS: Record<BookingState, string> = {
   PICKED_UP: "bg-indigo-100 text-indigo-800",
   IN_USE: "bg-indigo-100 text-indigo-800",
   RETURNED: "bg-teal-100 text-teal-800",
-  COMPLETED: "bg-emerald-100 text-emerald-800",
+  COMPLETED: "bg-leaf-light text-leaf",
   DECLINED: "bg-red-100 text-red-800",
   CANCELLED: "bg-neutral-200 text-neutral-600",
   MAINTENANCE: "bg-orange-100 text-orange-800",

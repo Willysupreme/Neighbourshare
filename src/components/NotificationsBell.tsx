@@ -59,7 +59,7 @@ export function NotificationsBell() {
                   key={n.id}
                   onClick={() => markRead(n.id)}
                   className={`block w-full border-b border-neutral-100 p-3 text-left text-sm last:border-0 ${
-                    n.read ? "text-neutral-500" : "bg-emerald-50 font-medium text-neutral-800"
+                    n.read ? "text-neutral-500" : "bg-leaf-light font-medium text-neutral-800"
                   }`}
                 >
                   {n.message}

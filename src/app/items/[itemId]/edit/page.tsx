@@ -163,7 +163,7 @@ function EditItemForm() {
   return (
     <div className="mx-auto max-w-lg px-4 py-10">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Edit listing</h1>
+        <h1 className="display-heading text-3xl">Edit listing</h1>
         <button
           type="button"
           onClick={toggleActive}
@@ -173,7 +173,7 @@ function EditItemForm() {
         </button>
       </div>
 
-      {notice && <p className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{notice}</p>}
+      {notice && <p className="mt-3 rounded-md bg-leaf-light px-3 py-2 text-sm text-leaf">{notice}</p>}
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
         <label className="block">
