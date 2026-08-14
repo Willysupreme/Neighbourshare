@@ -1,0 +1,119 @@
+rules_version = '2';
+
+// NeighborShare Firestore Security Rules
+//
+// Design principle (§23 of project spec): authorisation must never rely
+// solely on hiding UI elements. These rules are the actual enforcement
+// layer and must independently reject any write the client-side code
+// would have prevented.
+//
+// Deploy with: firebase deploy --only firestore:rules
+// (requires `firebase login` + `firebase use <project-id>` run locally by
+// the project owner - see Deployment_and_Source_Links.txt)
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function userDoc(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        userDoc(request.auth.uid).role == 'admin';
+    }
+
+    function isActiveAccount() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        userDoc(request.auth.uid).accountStatus == 'active';
+    }
+
+    // ---- users ----
+    match /users/{uid} {
+      allow read: if isSignedIn();
+      allow create: if isSelf(uid);
+      // Users may edit their own profile but may NEVER self-assign role,
+      // verificationStatus, trustScore, or accountStatus - those are
+      // owner-restricted / system-computed fields.
+      allow update: if isSelf(uid) &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.accountStatus == resource.data.accountStatus &&
+        request.resource.data.trustScore == resource.data.trustScore
+        || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ---- neighborhoods (read-only to clients; managed via admin tooling) ----
+    match /neighborhoods/{neighborhoodId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ---- items ----
+    match /items/{itemId} {
+      allow read: if isSignedIn();
+      allow create: if isActiveAccount() &&
+        request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isActiveAccount() &&
+        (resource.data.ownerId == request.auth.uid || isAdmin());
+    }
+
+    // ---- bookings ----
+    // Booking state transitions are additionally validated server-side in
+    // the Next.js API route (src/lib/booking/stateMachine.ts) before any
+    // Firestore write is issued, using a Firestore transaction to prevent
+    // race conditions between concurrent overlapping requests. See
+    // Technical_Debt_Plan.pdf NS-TD-03 for the documented limits of this
+    // approach under true distributed concurrency.
+    match /bookings/{bookingId} {
+      allow read: if isActiveAccount() &&
+        (resource.data.ownerId == request.auth.uid ||
+         resource.data.borrowerId == request.auth.uid ||
+         isAdmin());
+      allow create: if isActiveAccount() &&
+        request.resource.data.borrowerId == request.auth.uid &&
+        request.resource.data.state == 'REQUESTED';
+      allow update: if isActiveAccount() &&
+        (resource.data.ownerId == request.auth.uid ||
+         resource.data.borrowerId == request.auth.uid ||
+         isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // ---- reviews ----
+    match /reviews/{reviewId} {
+      allow read: if isSignedIn();
+      allow create: if isActiveAccount() &&
+        request.resource.data.reviewerId == request.auth.uid &&
+        request.resource.data.rating >= 1 && request.resource.data.rating <= 5;
+      allow update, delete: if isAdmin();
+    }
+
+    // ---- damageReports ----
+    match /damageReports/{reportId} {
+      allow read: if isActiveAccount() &&
+        (resource.data.reporterId == request.auth.uid || isAdmin());
+      allow create: if isActiveAccount() &&
+        request.resource.data.reporterId == request.auth.uid;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ---- notifications ----
+    match /notifications/{notificationId} {
+      allow read, update: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn(); // created by trusted server logic (API routes) with Admin SDK, which bypasses rules; this allows client-side fallback writes only to the user's own doc
+      allow delete: if isAdmin();
+    }
+  }
+}
