@@ -24,7 +24,12 @@ export interface AppUser {
 export interface Neighborhood {
   id: string;
   name: string;
-  verificationCode: string; // MVP simplification - see Technical_Debt_Plan §NS-TD-01
+  region?: string;
+  verificationCode: string; // MVP simplification - see Technical_Debt_Plan.pdf item NS-TD-01
+  latitude?: number;
+  longitude?: number;
+  createdBy: string;
+  createdAt: string;
 }
 
 export type ItemCategory =

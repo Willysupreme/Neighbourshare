@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { registerSchema } from "@/lib/validation/schemas";
-import { NEIGHBORHOODS } from "@/lib/neighborhoods";
+import { GoogleAuthButton } from "@/components/GoogleAuthButton";
 
 export default function RegisterPage() {
   const { register } = useAuth();
@@ -14,7 +14,6 @@ export default function RegisterPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [neighborhoodId, setNeighborhoodId] = useState(NEIGHBORHOODS[0].id);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -22,7 +21,7 @@ export default function RegisterPage() {
     e.preventDefault();
     setError(null);
 
-    const parsed = registerSchema.safeParse({ name, email, password, neighborhoodId });
+    const parsed = registerSchema.safeParse({ name, email, password });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Please check the form and try again.");
       return;
@@ -31,7 +30,8 @@ export default function RegisterPage() {
     setSubmitting(true);
     try {
       await register(parsed.data);
-      router.push("/verify-neighborhood");
+      // A brand new account never has a neighborhood chosen yet.
+      router.push("/choose-neighborhood");
     } catch (err) {
       setError(mapFirebaseError(err));
     } finally {
@@ -46,7 +46,17 @@ export default function RegisterPage() {
         Join your neighborhood to borrow and lend tools and equipment.
       </p>
 
-      <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+      <div className="mt-6">
+        <GoogleAuthButton />
+      </div>
+
+      <div className="my-6 flex items-center gap-3 text-xs text-neutral-400">
+        <div className="h-px flex-1 bg-neutral-200" />
+        or sign up with email
+        <div className="h-px flex-1 bg-neutral-200" />
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
         <Field label="Full name">
           <input
             className="input"
@@ -74,20 +84,6 @@ export default function RegisterPage() {
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="new-password"
           />
-        </Field>
-
-        <Field label="Neighborhood">
-          <select
-            className="input"
-            value={neighborhoodId}
-            onChange={(e) => setNeighborhoodId(e.target.value)}
-          >
-            {NEIGHBORHOODS.map((n) => (
-              <option key={n.id} value={n.id}>
-                {n.name}
-              </option>
-            ))}
-          </select>
         </Field>
 
         {error && (

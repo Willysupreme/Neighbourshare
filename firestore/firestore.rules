@@ -53,10 +53,18 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // ---- neighborhoods (read-only to clients; managed via admin tooling) ----
+    // ---- neighborhoods ----
+    // Read requires sign-in (not fully public) because each neighborhood
+    // document includes its shared verification code - see §9 MVP
+    // simplification note. Any active user can add a missing neighborhood;
+    // only admins can edit/delete one, since editing a verification code
+    // after residents have already joined using the old one would be a
+    // real integrity problem, not just a cosmetic edit.
     match /neighborhoods/{neighborhoodId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow create: if isActiveAccount() &&
+        request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if isAdmin();
     }
 
     // ---- items ----

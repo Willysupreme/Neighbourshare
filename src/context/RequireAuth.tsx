@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+
+const EXEMPT_FROM_NEIGHBORHOOD_CHECK = ["/choose-neighborhood"];
 
 export function RequireAuth({
   children,
@@ -13,6 +15,7 @@ export function RequireAuth({
 }) {
   const { firebaseUser, profile, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (loading) return;
@@ -22,8 +25,16 @@ export function RequireAuth({
     }
     if (requireAdmin && profile && profile.role !== "admin") {
       router.replace("/dashboard");
+      return;
     }
-  }, [loading, firebaseUser, profile, requireAdmin, router]);
+    if (
+      profile &&
+      !profile.neighborhoodId &&
+      !EXEMPT_FROM_NEIGHBORHOOD_CHECK.includes(pathname)
+    ) {
+      router.replace("/choose-neighborhood");
+    }
+  }, [loading, firebaseUser, profile, requireAdmin, pathname, router]);
 
   if (loading || !firebaseUser) {
     return (
@@ -34,6 +45,10 @@ export function RequireAuth({
   }
 
   if (requireAdmin && profile && profile.role !== "admin") {
+    return null;
+  }
+
+  if (profile && !profile.neighborhoodId && !EXEMPT_FROM_NEIGHBORHOOD_CHECK.includes(pathname)) {
     return null;
   }
 

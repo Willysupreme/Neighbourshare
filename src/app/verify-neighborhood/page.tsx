@@ -1,20 +1,31 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useEffect, useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { useAuth } from "@/context/AuthContext";
 import { RequireAuth } from "@/context/RequireAuth";
-import { verificationSchema } from "@/lib/validation/schemas";
-import { verifyCode } from "@/lib/neighborhoods";
+import { getNeighborhood } from "@/lib/neighborhoods/directory";
+import { verifyNeighborhoodCode } from "@/lib/neighborhoods/distance";
+import { Neighborhood } from "@/types";
 
 function VerifyForm() {
   const { profile, refreshProfile } = useAuth();
   const router = useRouter();
+  const [neighborhood, setNeighborhood] = useState<Neighborhood | null | undefined>(undefined);
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    async function load() {
+      if (!profile?.neighborhoodId) return;
+      const n = await getNeighborhood(profile.neighborhoodId);
+      setNeighborhood(n);
+    }
+    load();
+  }, [profile?.neighborhoodId]);
 
   if (!profile) return null;
 
@@ -36,17 +47,16 @@ function VerifyForm() {
     e.preventDefault();
     setError(null);
 
-    const parsed = verificationSchema.safeParse({
-      neighborhoodId: profile!.neighborhoodId,
-      code,
-    });
-    if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Enter a valid code.");
+    if (!neighborhood) {
+      setError("Couldn't load your neighborhood. Please try again.");
       return;
     }
-
-    if (!verifyCode(parsed.data.neighborhoodId, parsed.data.code)) {
-      setError("That verification code doesn't match your neighborhood. Ask a neighbor or your community admin for the current code.");
+    if (!code.trim()) {
+      setError("Enter the verification code.");
+      return;
+    }
+    if (!verifyNeighborhoodCode(neighborhood, code)) {
+      setError("That verification code doesn't match your neighborhood. Ask a neighbor for the current code.");
       return;
     }
 
@@ -69,10 +79,11 @@ function VerifyForm() {
     <div className="mx-auto max-w-md px-4 py-12">
       <h1 className="text-2xl font-semibold">Verify your neighborhood</h1>
       <p className="mt-2 text-sm text-neutral-600">
-        For this MVP, enter the neighborhood code shared with residents of your community
-        (e.g. on your community noticeboard or by a neighborhood admin). This is a simplified
-        stand-in for full address/geolocation verification, which is planned for a future
-        release.
+        {neighborhood
+          ? <>Enter the verification code shared with residents of <strong>{neighborhood.name}</strong>.</>
+          : "Loading your neighborhood..."}
+        {" "}This is a simplified stand-in for full address/geolocation verification, planned
+        for a future release.
       </p>
 
       <form onSubmit={handleSubmit} className="mt-8 space-y-4">
@@ -82,7 +93,7 @@ function VerifyForm() {
             className="input"
             value={code}
             onChange={(e) => setCode(e.target.value)}
-            placeholder="e.g. MAPLE2026"
+            placeholder="e.g. OSU-4K7Q"
           />
         </label>
 
@@ -98,6 +109,14 @@ function VerifyForm() {
           className="w-full rounded-md bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
         >
           {submitting ? "Verifying..." : "Verify"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => router.push("/choose-neighborhood")}
+          className="w-full text-center text-xs text-neutral-400 hover:text-neutral-600"
+        >
+          Wrong neighborhood? Change it
         </button>
 
         <button

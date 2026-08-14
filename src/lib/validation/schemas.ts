@@ -4,9 +4,10 @@ export const registerSchema = z.object({
   name: z.string().trim().min(2, "Name must be at least 2 characters").max(80),
   email: z.string().trim().email("Enter a valid email address"),
   password: z.string().min(8, "Password must be at least 8 characters"),
-  neighborhoodId: z.string().min(1, "Select a neighborhood"),
 });
 export type RegisterInput = z.infer<typeof registerSchema>;
+
+export const neighborhoodNameSchema = z.string().trim().min(2, "Enter a neighborhood name").max(80);
 
 export const loginSchema = z.object({
   email: z.string().trim().email("Enter a valid email address"),

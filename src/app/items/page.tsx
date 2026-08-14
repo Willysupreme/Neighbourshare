@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
-import { Item, ItemCategory } from "@/types";
-import { NEIGHBORHOODS } from "@/lib/neighborhoods";
+import { Item, ItemCategory, Neighborhood } from "@/types";
+import { listNeighborhoods } from "@/lib/neighborhoods/directory";
 
 const CATEGORY_LABELS: Record<ItemCategory, string> = {
   power_tools: "Power tools",
@@ -18,6 +18,7 @@ const CATEGORY_LABELS: Record<ItemCategory, string> = {
 
 export default function BrowseItemsPage() {
   const [items, setItems] = useState<Item[]>([]);
+  const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<ItemCategory | "all">("all");
@@ -32,8 +33,9 @@ export default function BrowseItemsPage() {
           where("status", "==", "active"),
           orderBy("createdAt", "desc")
         );
-        const snap = await getDocs(q);
-        setItems(snap.docs.map((d) => d.data() as Item));
+        const [itemsSnap, neighborhoodList] = await Promise.all([getDocs(q), listNeighborhoods()]);
+        setItems(itemsSnap.docs.map((d) => d.data() as Item));
+        setNeighborhoods(neighborhoodList);
       } finally {
         setLoading(false);
       }
@@ -82,7 +84,7 @@ export default function BrowseItemsPage() {
           onChange={(e) => setNeighborhoodId(e.target.value)}
         >
           <option value="all">All neighborhoods</option>
-          {NEIGHBORHOODS.map((n) => (
+          {neighborhoods.map((n) => (
             <option key={n.id} value={n.id}>
               {n.name}
             </option>
