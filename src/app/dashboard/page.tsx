@@ -33,6 +33,8 @@ function DashboardContent() {
   }, [profile]);
 
   useEffect(() => {
+    // Same justified pattern as admin/page.tsx - see comment there.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadAll();
   }, [loadAll]);
 
@@ -128,16 +130,21 @@ function OwnerView({
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {items.map((item) => (
-              <Link key={item.id} href={`/items/${item.id}`} className="card">
+              <div key={item.id} className="card">
                 <div className="flex items-center justify-between">
-                  <span className="font-medium">{item.name}</span>
+                  <Link href={`/items/${item.id}`} className="font-medium hover:underline">
+                    {item.name}
+                  </Link>
                   <span
                     className={`badge ${item.status === "active" ? "bg-emerald-100 text-emerald-700" : "bg-neutral-200 text-neutral-600"}`}
                   >
                     {item.status}
                   </span>
                 </div>
-              </Link>
+                <Link href={`/items/${item.id}/edit`} className="mt-2 inline-block text-xs text-emerald-700 hover:underline">
+                  Edit listing →
+                </Link>
+              </div>
             ))}
           </div>
         )}

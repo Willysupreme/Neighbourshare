@@ -18,6 +18,12 @@ export function BookingActions({ booking, viewerRole, onChanged }: Props) {
   const [conditionAfter, setConditionAfter] = useState<ItemCondition>("good");
 
   async function transition(to: BookingState, extra?: Record<string, unknown>) {
+    const confirmMessages: Partial<Record<BookingState, string>> = {
+      DECLINED: "Decline this request? The borrower will be notified.",
+      CANCELLED: "Cancel this booking? This can't be undone.",
+    };
+    if (confirmMessages[to] && !window.confirm(confirmMessages[to])) return;
+
     setBusy(true);
     setError(null);
     try {

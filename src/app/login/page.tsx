@@ -7,13 +7,34 @@ import { useAuth } from "@/context/AuthContext";
 import { loginSchema } from "@/lib/validation/schemas";
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, resetPassword } = useAuth();
   const router = useRouter();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [resetMode, setResetMode] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+
+  async function handleReset() {
+    setError(null);
+    if (!email.trim()) {
+      setError("Enter your email above first, then click \"Forgot password?\" again.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await resetPassword(email.trim());
+      setResetSent(true);
+    } catch {
+      // Deliberately vague: don't reveal whether an account exists for
+      // this email (avoids leaking which addresses are registered users).
+      setResetSent(true);
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -63,6 +84,33 @@ export default function LoginPage() {
             autoComplete="current-password"
           />
         </label>
+
+        <button
+          type="button"
+          onClick={() => setResetMode((m) => !m)}
+          className="text-xs text-emerald-700 hover:underline"
+        >
+          Forgot password?
+        </button>
+
+        {resetMode && (
+          <div className="rounded-md bg-neutral-50 p-3">
+            {resetSent ? (
+              <p className="text-sm text-emerald-700">
+                If an account exists for that email, a reset link is on its way.
+              </p>
+            ) : (
+              <button
+                type="button"
+                onClick={handleReset}
+                disabled={submitting}
+                className="btn-secondary text-sm"
+              >
+                {submitting ? "Sending..." : `Send reset link to ${email || "this address"}`}
+              </button>
+            )}
+          </div>
+        )}
 
         {error && (
           <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">

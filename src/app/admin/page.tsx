@@ -33,11 +33,20 @@ function AdminContent() {
   }, []);
 
   useEffect(() => {
+    // loadAll sets `loading` before/after its async Firestore reads - a
+    // standard fetch-on-mount pattern. Deps array prevents re-fire loops.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadAll();
   }, [loadAll]);
 
   async function toggleSuspend(user: AppUser) {
     const next = user.accountStatus === "active" ? "suspended" : "active";
+    const confirmMsg =
+      next === "suspended"
+        ? `Suspend ${user.name}'s account? They won't be able to log in or make new bookings until reinstated.`
+        : `Reinstate ${user.name}'s account?`;
+    if (!window.confirm(confirmMsg)) return;
+
     await authedFetch(`/api/admin/users/${user.uid}/suspend`, {
       method: "POST",
       body: JSON.stringify({ status: next }),
@@ -45,7 +54,8 @@ function AdminContent() {
     loadAll();
   }
 
-  async function removeItem(itemId: string) {
+  async function removeItem(itemId: string, itemName: string) {
+    if (!window.confirm(`Remove "${itemName}" from the platform? This can't be undone from here.`)) return;
     await authedFetch(`/api/admin/items/${itemId}/remove`, { method: "POST" });
     loadAll();
   }
@@ -118,7 +128,7 @@ function AdminContent() {
                 i.category,
                 i.status,
                 i.status !== "removed" ? (
-                  <button key="remove" onClick={() => removeItem(i.id)} className="btn-secondary">
+                  <button key="remove" onClick={() => removeItem(i.id, i.name)} className="btn-secondary">
                     Remove listing
                   </button>
                 ) : (

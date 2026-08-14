@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
         neighborhoodId: item.neighborhoodId,
         startDate,
         endDate,
-        note,
+        note: note ?? "",
         state: "REQUESTED",
         conditionBefore: item.condition,
         createdAt: now,

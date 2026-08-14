@@ -24,9 +24,18 @@ function getAdminApp(): App {
     );
   }
 
-  return initializeApp({
+  const app = initializeApp({
     credential: cert({ projectId, clientEmail, privateKey }),
   });
+
+  // Defense-in-depth: even with explicit `?? ""` defaults in each API route,
+  // this prevents any future optional field from crashing a write if a
+  // developer forgets to default it. Explicit defaults are still preferred
+  // where the field matters, since silently dropping a field is its own
+  // kind of bug - this setting only guards against the two combining badly.
+  getFirestore(app).settings({ ignoreUndefinedProperties: true });
+
+  return app;
 }
 
 export const adminAuth = () => getAuth(getAdminApp());

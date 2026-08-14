@@ -2,6 +2,7 @@
 
 import { useEffect, useState, FormEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -97,9 +98,14 @@ export default function ItemDetailPage() {
       )}
 
       {isOwner ? (
-        <p className="mt-8 rounded-md bg-neutral-100 px-3 py-2 text-sm text-neutral-600">
-          This is your own listing - manage it from your dashboard.
-        </p>
+        <div className="mt-8 flex items-center gap-3">
+          <Link href={`/items/${item.id}/edit`} className="btn-secondary">
+            Edit listing
+          </Link>
+          {item.status !== "active" && (
+            <span className="badge bg-neutral-200 text-neutral-600">{item.status}</span>
+          )}
+        </div>
       ) : (
         <form onSubmit={handleSubmit} className="card mt-8 space-y-4">
           <h2 className="font-medium">Request to borrow</h2>
