@@ -1,30 +1,39 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { getPostAuthRedirect } from "@/lib/postAuthRedirect";
 
 export function GoogleAuthButton() {
-  const { loginWithGoogle } = useAuth();
+  const { loginWithGoogle, completeGoogleRedirect } = useAuth();
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [checkingRedirect, setCheckingRedirect] = useState(true);
+
+  useEffect(() => {
+    // On mount, check whether we just landed back here after a Google
+    // redirect. Resolves quickly to null if not (normal page load).
+    completeGoogleRedirect()
+      .then((profile) => {
+        if (profile) router.push(getPostAuthRedirect(profile));
+      })
+      .catch(() => {
+        setError("Something went wrong signing in with Google. Please try again.");
+      })
+      .finally(() => setCheckingRedirect(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleClick() {
     setError(null);
     setBusy(true);
     try {
-      const profile = await loginWithGoogle();
-      router.push(getPostAuthRedirect(profile));
-    } catch (err) {
-      const code = (err as { code?: string })?.code ?? "";
-      if (code === "auth/popup-closed-by-user") {
-        // User closed the popup themselves - not an error worth showing.
-      } else {
-        setError("Something went wrong signing in with Google. Please try again.");
-      }
-    } finally {
+      await loginWithGoogle();
+      // Browser navigates away here - nothing after this line runs.
+    } catch {
+      setError("Something went wrong starting Google sign-in. Please try again.");
       setBusy(false);
     }
   }
@@ -34,7 +43,7 @@ export function GoogleAuthButton() {
       <button
         type="button"
         onClick={handleClick}
-        disabled={busy}
+        disabled={busy || checkingRedirect}
         className="flex w-full items-center justify-center gap-2 rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
       >
         <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
@@ -55,7 +64,7 @@ export function GoogleAuthButton() {
             d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.97l2.99 2.33C4.66 5.17 6.65 3.58 9 3.58z"
           />
         </svg>
-        {busy ? "Signing in..." : "Continue with Google"}
+        {busy ? "Redirecting to Google..." : "Continue with Google"}
       </button>
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
     </div>

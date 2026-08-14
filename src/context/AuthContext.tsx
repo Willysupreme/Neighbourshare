@@ -10,7 +10,8 @@ import {
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
@@ -29,7 +30,8 @@ interface AuthContextValue {
   loading: boolean;
   register: (input: RegisterInput) => Promise<AppUser | null>;
   login: (email: string, password: string) => Promise<AppUser | null>;
-  loginWithGoogle: () => Promise<AppUser | null>;
+  loginWithGoogle: () => Promise<void>;
+  completeGoogleRedirect: () => Promise<AppUser | null>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -75,24 +77,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   /**
-   * Google sign-in doubles as both login and registration - Firebase Auth
-   * itself doesn't distinguish new vs returning users the way email/password
-   * signup does. We detect "new" by checking whether a Firestore profile
-   * already exists, and create a minimal one (no neighborhood chosen yet)
-   * if not. The calling page decides where to route next based on the
-   * resulting profile state (see getPostAuthRedirect).
+   * Google sign-in uses signInWithRedirect rather than signInWithPopup.
+   * Next.js sets a Cross-Origin-Opener-Policy header by default that
+   * blocks the popup flow's window.closed check (a well-known Next.js +
+   * Firebase Auth incompatibility), causing popup sign-in to silently
+   * fail. Redirect sidesteps this - and works better on mobile anyway,
+   * where popups are often blocked outright.
    */
   async function loginWithGoogle() {
-    const credential = await signInWithPopup(auth, new GoogleAuthProvider());
-    const existing = await getDoc(doc(db, "users", credential.user.uid));
+    await signInWithRedirect(auth, new GoogleAuthProvider());
+    // Execution stops here - the browser navigates away to Google and
+    // back. See completeGoogleRedirect for what happens on return.
+  }
+
+  /**
+   * Call this once on mount of any page that offers Google sign-in. If the
+   * user just came back from a Google redirect, this creates their
+   * profile (if new) and returns it; otherwise resolves to null quickly.
+   */
+  async function completeGoogleRedirect(): Promise<AppUser | null> {
+    const result = await getRedirectResult(auth);
+    if (!result) return null;
+    const existing = await getDoc(doc(db, "users", result.user.uid));
     if (!existing.exists()) {
       await createMinimalProfile(
-        credential.user.uid,
-        credential.user.displayName ?? "Neighbor",
-        credential.user.email ?? ""
+        result.user.uid,
+        result.user.displayName ?? "Neighbor",
+        result.user.email ?? ""
       );
     }
-    return loadProfile(credential.user.uid);
+    return loadProfile(result.user.uid);
   }
 
   async function createMinimalProfile(uid: string, name: string, email: string) {
@@ -130,7 +144,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ firebaseUser, profile, loading, register, login, loginWithGoogle, logout, resetPassword, refreshProfile }}
+      value={{
+        firebaseUser,
+        profile,
+        loading,
+        register,
+        login,
+        loginWithGoogle,
+        completeGoogleRedirect,
+        logout,
+        resetPassword,
+        refreshProfile,
+      }}
     >
       {children}
     </AuthContext.Provider>
