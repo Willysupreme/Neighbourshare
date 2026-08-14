@@ -51,11 +51,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return loaded;
   }
 
+  async function createMinimalProfile(uid: string, name: string, email: string) {
+    const newUser: Omit<AppUser, "createdAt" | "updatedAt"> & {
+      createdAt: unknown;
+      updatedAt: unknown;
+    } = {
+      uid,
+      name,
+      email,
+      neighborhoodId: "",
+      role: "user",
+      accountStatus: "active",
+      verificationStatus: "unverified",
+      trustScore: 3.0,
+      completedTransactions: 0,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+    await setDoc(doc(db, "users", uid), newUser);
+  }
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setFirebaseUser(user);
       if (user) {
-        await loadProfile(user.uid);
+        const loaded = await loadProfile(user.uid);
+        if (!loaded) {
+          // Auth account exists but no Firestore profile - most likely an
+          // interrupted signup (e.g. a Google redirect that authenticated
+          // successfully but didn't finish writing the profile doc, or a
+          // network blip mid-registration). Self-heal rather than leaving
+          // the person stuck signed-in with nothing to show for it.
+          await createMinimalProfile(
+            user.uid,
+            user.displayName ?? "Neighbor",
+            user.email ?? ""
+          );
+          await loadProfile(user.uid);
+        }
       } else {
         setProfile(null);
       }
@@ -107,26 +140,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
     }
     return loadProfile(result.user.uid);
-  }
-
-  async function createMinimalProfile(uid: string, name: string, email: string) {
-    const newUser: Omit<AppUser, "createdAt" | "updatedAt"> & {
-      createdAt: unknown;
-      updatedAt: unknown;
-    } = {
-      uid,
-      name,
-      email,
-      neighborhoodId: "",
-      role: "user",
-      accountStatus: "active",
-      verificationStatus: "unverified",
-      trustScore: 3.0,
-      completedTransactions: 0,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    };
-    await setDoc(doc(db, "users", uid), newUser);
   }
 
   async function logout() {
