@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, useEffect, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
@@ -9,7 +9,7 @@ import { GoogleAuthButton } from "@/components/GoogleAuthButton";
 import { getPostAuthRedirect } from "@/lib/postAuthRedirect";
 
 export default function LoginPage() {
-  const { login, resetPassword } = useAuth();
+  const { login, resetPassword, firebaseUser, profile, loading } = useAuth();
   const router = useRouter();
 
   const [email, setEmail] = useState("");
@@ -19,6 +19,20 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [resetMode, setResetMode] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+
+  useEffect(() => {
+    if (!loading && firebaseUser) {
+      router.replace(getPostAuthRedirect(profile));
+    }
+  }, [loading, firebaseUser, profile, router]);
+
+  if (loading || firebaseUser) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center text-sm text-neutral-500">
+        Loading...
+      </div>
+    );
+  }
 
   async function handleReset() {
     setError(null);

@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, useEffect, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { registerSchema } from "@/lib/validation/schemas";
 import { GoogleAuthButton } from "@/components/GoogleAuthButton";
+import { getPostAuthRedirect } from "@/lib/postAuthRedirect";
 
 export default function RegisterPage() {
-  const { register } = useAuth();
+  const { register, firebaseUser, profile, loading } = useAuth();
   const router = useRouter();
 
   const [name, setName] = useState("");
@@ -16,6 +17,20 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!loading && firebaseUser) {
+      router.replace(getPostAuthRedirect(profile));
+    }
+  }, [loading, firebaseUser, profile, router]);
+
+  if (loading || firebaseUser) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center text-sm text-neutral-500">
+        Loading...
+      </div>
+    );
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
