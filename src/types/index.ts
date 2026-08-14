@@ -111,6 +111,16 @@ export interface Booking {
   itemName: string;
   ownerName: string;
   borrowerName: string;
+  // One-time, borrower-consented location snapshot - not live tracking.
+  // Captured when the borrower explicitly chooses to share it (typically
+  // around pickup), visible only to that item's owner, and cleared
+  // automatically when the booking transitions to RETURNED. See
+  // src/components/ShareLocationButton.tsx and BookingLocationMap.tsx.
+  borrowerLocation?: {
+    latitude: number;
+    longitude: number;
+    capturedAt: string;
+  };
   createdAt: string;
   updatedAt: string;
 }

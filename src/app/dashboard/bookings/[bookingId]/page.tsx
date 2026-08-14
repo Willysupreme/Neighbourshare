@@ -2,6 +2,7 @@
 
 import { useEffect, useState, FormEvent } from "react";
 import { useParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { useAuth } from "@/context/AuthContext";
@@ -9,7 +10,14 @@ import { RequireAuth } from "@/context/RequireAuth";
 import { authedFetch } from "@/lib/apiClient";
 import { damageReportSchema, reviewSchema } from "@/lib/validation/schemas";
 import { ClaimTag } from "@/components/ClaimTag";
+import { ShareLocationButton } from "@/components/ShareLocationButton";
 import { Booking, DamageSeverity } from "@/types";
+
+// Leaflet touches `window` on module load - must be client-only, no SSR.
+const BookingLocationMap = dynamic(
+  () => import("@/components/BookingLocationMap").then((m) => m.BookingLocationMap),
+  { ssr: false, loading: () => <div className="h-[220px] animate-pulse rounded border border-line bg-line/20" /> }
+);
 
 function BookingDetailContent() {
   const { bookingId } = useParams<{ bookingId: string }>();
@@ -49,6 +57,26 @@ function BookingDetailContent() {
           Condition after: <span className="capitalize">{booking.conditionAfter.replace("_", " ")}</span>
         </p>
       )}
+
+      {["PICKED_UP", "IN_USE"].includes(booking.state) && profile.uid === booking.borrowerId && (
+        <div className="mt-6">
+          <ShareLocationButton booking={booking} />
+        </div>
+      )}
+
+      {["PICKED_UP", "IN_USE"].includes(booking.state) &&
+        profile.uid === booking.ownerId &&
+        booking.borrowerLocation && (
+          <div className="mt-6">
+            <p className="mb-2 text-sm font-medium">Where {booking.borrowerName} has it</p>
+            <BookingLocationMap
+              latitude={booking.borrowerLocation.latitude}
+              longitude={booking.borrowerLocation.longitude}
+              capturedAt={booking.borrowerLocation.capturedAt}
+              label={booking.borrowerName}
+            />
+          </div>
+        )}
 
       {["PICKED_UP", "IN_USE", "RETURNED", "COMPLETED"].includes(booking.state) && (
         <DamageReportForm bookingId={booking.id} />

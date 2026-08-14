@@ -61,8 +61,13 @@ export async function POST(
         state: to,
         updatedAt: FieldValue.serverTimestamp(),
       };
-      if (to === "RETURNED" && conditionAfter) {
-        updates.conditionAfter = conditionAfter;
+      if (to === "RETURNED") {
+        if (conditionAfter) updates.conditionAfter = conditionAfter;
+        // Privacy cleanup: a shared location snapshot only makes sense
+        // while the item is actively out on loan - clear it the moment
+        // the item comes back, rather than leaving stale location data
+        // sitting on a completed booking indefinitely.
+        updates.borrowerLocation = FieldValue.delete();
       }
 
       tx.update(bookingRef, updates);
