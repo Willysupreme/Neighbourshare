@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
       description: parsed.data.description,
       condition: parsed.data.condition,
       pickupInstructions: parsed.data.pickupInstructions ?? "",
-      imageUrls: [],
+      imageUrls: parsed.data.imageUrls ?? [],
       status: "active",
       createdAt: now,
       updatedAt: now,

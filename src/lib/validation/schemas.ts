@@ -33,6 +33,7 @@ export const itemSchema = z.object({
   description: z.string().trim().min(10, "Please add a short description (10+ characters)").max(1000),
   condition: z.enum(["excellent", "good", "fair", "needs_repair"]),
   pickupInstructions: z.string().trim().max(500).optional(),
+  imageUrls: z.array(z.string().url()).max(5, "Up to 5 photos per item").optional(),
 });
 export type ItemInput = z.infer<typeof itemSchema>;
 

@@ -100,6 +100,14 @@ export default function BrowseItemsPage() {
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((item) => (
             <Link key={item.id} href={`/items/${item.id}`} className="card hover:shadow-md transition-shadow">
+              {item.imageUrls?.[0] && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={item.imageUrls[0]}
+                  alt={item.name}
+                  className="mb-3 h-32 w-full rounded-md object-cover"
+                />
+              )}
               <div className="flex items-center justify-between">
                 <h2 className="font-medium">{item.name}</h2>
                 <span className="badge bg-neutral-100 text-neutral-600">
