@@ -19,9 +19,18 @@ export function NotificationsBell() {
       orderBy("createdAt", "desc"),
       limit(20)
     );
-    const unsubscribe = onSnapshot(q, (snap) => {
-      setNotifications(snap.docs.map((d) => d.data() as AppNotification));
-    });
+    const unsubscribe = onSnapshot(
+      q,
+      (snap) => {
+        setNotifications(snap.docs.map((d) => d.data() as AppNotification));
+      },
+      () => {
+        // Expected during account switches/logout: the listener can briefly
+        // outlive the auth token it was created under before this effect's
+        // cleanup runs. Not a real error - just stop showing stale data.
+        setNotifications([]);
+      }
+    );
     return unsubscribe;
   }, [profile]);
 

@@ -216,6 +216,16 @@ function BookingRow({
             {otherPartyLabel} · {booking.startDate} → {booking.endDate}
           </p>
           {booking.note && <p className="text-xs text-neutral-500">&ldquo;{booking.note}&rdquo;</p>}
+          {role === "owner" && booking.state === "REQUESTED" && (
+            <p className="mt-1 flex items-center gap-2 font-tag text-xs">
+              <span className="text-ochre">★ {booking.borrowerTrustScore?.toFixed(1) ?? "—"} trust score</span>
+              {booking.borrowerVerified ? (
+                <span className="text-leaf">✓ Verified neighbor</span>
+              ) : (
+                <span className="text-clay">Not yet verified</span>
+              )}
+            </p>
+          )}
         </div>
         <ClaimTag state={booking.state} />
       </div>

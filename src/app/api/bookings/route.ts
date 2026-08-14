@@ -105,6 +105,8 @@ export async function POST(req: NextRequest) {
         itemName: item.name,
         ownerName,
         borrowerName: profile.name,
+        borrowerTrustScore: profile.trustScore,
+        borrowerVerified: profile.verificationStatus === "verified",
         createdAt: now,
         updatedAt: now,
       };

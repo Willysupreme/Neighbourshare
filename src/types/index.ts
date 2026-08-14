@@ -111,6 +111,12 @@ export interface Booking {
   itemName: string;
   ownerName: string;
   borrowerName: string;
+  // Snapshot of the borrower's reputation at request time - same
+  // deliberate-staleness tradeoff as itemName/ownerName/borrowerName above.
+  // Lets an owner see who they're dealing with before approving, without
+  // an extra Firestore read per pending request on the dashboard.
+  borrowerTrustScore: number;
+  borrowerVerified: boolean;
   // One-time, borrower-consented location snapshot - not live tracking.
   // Captured when the borrower explicitly chooses to share it (typically
   // around pickup), visible only to that item's owner, and cleared

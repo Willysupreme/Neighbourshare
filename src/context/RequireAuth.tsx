@@ -13,7 +13,7 @@ export function RequireAuth({
   children: React.ReactNode;
   requireAdmin?: boolean;
 }) {
-  const { firebaseUser, profile, loading } = useAuth();
+  const { firebaseUser, profile, loading, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -29,6 +29,7 @@ export function RequireAuth({
     }
     if (
       profile &&
+      profile.accountStatus === "active" &&
       !profile.neighborhoodId &&
       !EXEMPT_FROM_NEIGHBORHOOD_CHECK.includes(pathname)
     ) {
@@ -44,11 +45,32 @@ export function RequireAuth({
     );
   }
 
+  if (profile && profile.accountStatus === "suspended") {
+    return (
+      <div className="mx-auto max-w-md px-4 py-16 text-center">
+        <p className="display-heading text-2xl text-clay">Account suspended</p>
+        <p className="mt-3 text-sm text-neutral-600">
+          Your account has been suspended by an administrator. You can&apos;t list items,
+          request bookings, or take other actions while suspended. If you believe this is a
+          mistake, contact an administrator.
+        </p>
+        <button onClick={() => logout()} className="btn-secondary mt-6">
+          Log out
+        </button>
+      </div>
+    );
+  }
+
   if (requireAdmin && profile && profile.role !== "admin") {
     return null;
   }
 
-  if (profile && !profile.neighborhoodId && !EXEMPT_FROM_NEIGHBORHOOD_CHECK.includes(pathname)) {
+  if (
+    profile &&
+    profile.accountStatus === "active" &&
+    !profile.neighborhoodId &&
+    !EXEMPT_FROM_NEIGHBORHOOD_CHECK.includes(pathname)
+  ) {
     return null;
   }
 
