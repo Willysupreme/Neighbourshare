@@ -8,16 +8,15 @@ const nextConfig: NextConfig = {
   // firebase-admin-<hash>" and no JSON body, since the crash happens at
   // module load time, before our own route handler (and its try/catch)
   // ever runs.
-  serverExternalPackages: ["firebase-admin"],
-  // Note: this alone wasn't sufficient - Turbopack's support for cleanly
-  // externalizing complex packages like firebase-admin is still
-  // incomplete (confirmed via Vercel's own runtime logs: "Failed to load
-  // external module firebase-admin-<hash>", persisting even with this
-  // setting in place). The actual fix is forcing production builds to use
-  // webpack instead (see the "build" script in package.json: "next build
-  // --webpack"), which has mature, reliable support for this. Dev mode
-  // keeps using Turbopack (default, untouched) since it was never the
-  // problem and is faster for local iteration.
+  serverExternalPackages: ["firebase-admin", "jwks-rsa", "jose"],
+  // Note: externalizing firebase-admin alone was NOT sufficient. Its
+  // transitive dependency chain (firebase-admin -> jwks-rsa -> jose) still
+  // got bundled by webpack, and `jose` is a "type": "module" (ESM-only)
+  // package - webpack's server bundle uses require() at runtime, and
+  // require()-ing an ESM module throws "require() of ES Module ... not
+  // supported", confirmed via Vercel's own runtime logs. Externalizing the
+  // whole chain, not just the top-level package, lets Node's native
+  // module resolution handle them correctly instead of webpack's bundling.
 };
 
 export default nextConfig;
