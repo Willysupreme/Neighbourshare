@@ -135,7 +135,11 @@ async function matchWishlistsForNewItem(
 
     const ownerSnap = await db.collection("users").doc(wishlist.userId).get();
     if (!ownerSnap.exists) continue;
-    const owner = ownerSnap.data() as { neighborhoodId?: string; name?: string };
+    const owner = ownerSnap.data() as {
+      neighborhoodId?: string;
+      name?: string;
+      wishlistNotificationsEnabled?: boolean;
+    };
     if (!owner.neighborhoodId) continue;
 
     const ownerNeighborhoodSnap = await db.collection("neighborhoods").doc(owner.neighborhoodId).get();
@@ -151,11 +155,16 @@ async function matchWishlistsForNewItem(
     );
     if (distanceKm > wishlist.radiusKm) continue;
 
-    await notify(db, {
-      userId: wishlist.userId,
-      type: "wishlist_match",
-      message: `Wishlist alert: "${item.name}" is now available approximately ${distanceKm.toFixed(1)}km away.`,
-    });
+    // Notification preference (P1): a user can keep a wishlist active
+    // (still tracked, still deduped) while opting out of the alert itself.
+    // Defaults to enabled when the field has never been set.
+    if (owner.wishlistNotificationsEnabled !== false) {
+      await notify(db, {
+        userId: wishlist.userId,
+        type: "wishlist_match",
+        message: `Wishlist alert: "${item.name}" is now available approximately ${distanceKm.toFixed(1)}km away.`,
+      });
+    }
 
     await wishlistDoc.ref.update({
       notifiedItemIds: FieldValue.arrayUnion(item.id),

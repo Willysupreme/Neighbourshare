@@ -122,7 +122,12 @@ service cloud.firestore {
       // reason to talk (an actual lending transaction), which is both
       // simpler to build and a smaller abuse surface than an open inbox.
       match /messages/{messageId} {
-        allow read: if isBookingParty(bookingId) || isAdmin();
+        // Admin is deliberately NOT included here - admin conversation
+        // access must go through POST /api/admin/bookings/{id}/messages,
+        // which requires a reason and writes an audit log entry for every
+        // access. Letting admins read this collection directly via the
+        // client SDK would be an unlogged bypass of that requirement.
+        allow read: if isBookingParty(bookingId);
         allow create: if isActiveAccount() && isBookingParty(bookingId) &&
           request.resource.data.senderId == request.auth.uid &&
           !otherPartyBlockedSender(bookingId);

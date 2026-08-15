@@ -6,7 +6,7 @@ import { db } from "@/lib/firebase/client";
 import { RequireAuth } from "@/context/RequireAuth";
 import { authedFetch } from "@/lib/apiClient";
 import { formatRelativeTime } from "@/lib/formatRelativeTime";
-import { AppUser, Item, Booking, DamageReport, AuditLogEntry, NeighborhoodVerificationRequest } from "@/types";
+import { AppUser, Item, Booking, DamageReport, AuditLogEntry, NeighborhoodVerificationRequest, Message } from "@/types";
 
 type Tab = "overview" | "users" | "items" | "bookings" | "reports" | "audit" | "verification";
 
@@ -18,6 +18,7 @@ function AdminContent() {
   const [reports, setReports] = useState<DamageReport[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [verificationRequests, setVerificationRequests] = useState<NeighborhoodVerificationRequest[]>([]);
+  const [viewedConversation, setViewedConversation] = useState<{ bookingId: string; messages: Message[] } | null>(null);
   const [loading, setLoading] = useState(true);
 
   const loadAll = useCallback(async () => {
@@ -91,6 +92,28 @@ function AdminContent() {
     loadAll();
   }
 
+  async function viewConversation(bookingId: string) {
+    const reason = window.prompt(
+      "Reason for accessing this conversation (e.g. dispute investigation, abuse report). This is logged."
+    );
+    if (!reason || reason.trim().length < 10) {
+      if (reason !== null) {
+        window.alert("Please give a reason of at least 10 characters.");
+      }
+      return;
+    }
+    try {
+      const result = await authedFetch(`/api/admin/bookings/${bookingId}/messages`, {
+        method: "POST",
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
+      setViewedConversation({ bookingId, messages: result.messages });
+      loadAll(); // refresh so the new audit log entry shows up immediately
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Something went wrong.");
+    }
+  }
+
   const openReports = reports.filter((r) => r.status === "OPEN").length;
   const pendingVerifications = verificationRequests.filter((v) => v.status === "PENDING").length;
 
@@ -118,11 +141,22 @@ function AdminContent() {
       ) : (
         <div className="mt-6">
           {tab === "overview" && (
-            <div className="grid grid-cols-4 gap-4">
-              <Stat label="Users" value={users.length} />
-              <Stat label="Listings" value={items.length} />
-              <Stat label="Bookings" value={bookings.length} />
-              <Stat label="Open reports" value={openReports} />
+            <div className="space-y-8">
+              <div className="grid grid-cols-4 gap-4">
+                <Stat label="Users" value={users.length} />
+                <Stat label="Listings" value={items.length} />
+                <Stat label="Bookings" value={bookings.length} />
+                <Stat label="Open reports" value={openReports} />
+              </div>
+
+              <div className="grid gap-6 sm:grid-cols-3">
+                <BreakdownCard title="Listings by category" counts={countBy(items, (i) => i.category)} />
+                <BreakdownCard title="Bookings by state" counts={countBy(bookings, (b) => b.state)} />
+                <BreakdownCard
+                  title="Users by verification"
+                  counts={countBy(users, (u) => u.verificationStatus)}
+                />
+              </div>
             </div>
           )}
 
@@ -178,16 +212,42 @@ function AdminContent() {
           )}
 
           {tab === "bookings" && (
-            <Table
-              headers={["Item", "Borrower", "Owner", "Dates", "State"]}
-              rows={bookings.map((b) => [
-                b.itemName,
-                b.borrowerName,
-                b.ownerName,
-                `${b.startDate} → ${b.endDate}`,
-                b.state,
-              ])}
-            />
+            <>
+              <Table
+                headers={["Item", "Borrower", "Owner", "Dates", "State", ""]}
+                rows={bookings.map((b) => [
+                  b.itemName,
+                  b.borrowerName,
+                  b.ownerName,
+                  `${b.startDate} → ${b.endDate}`,
+                  b.state,
+                  <button key="view" onClick={() => viewConversation(b.id)} className="btn-secondary text-xs">
+                    View chat
+                  </button>,
+                ])}
+              />
+              {viewedConversation && (
+                <div className="card mt-4">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-sm font-medium">Conversation - booking {viewedConversation.bookingId}</p>
+                    <button onClick={() => setViewedConversation(null)} className="text-xs text-neutral-400 hover:underline">
+                      Close
+                    </button>
+                  </div>
+                  {viewedConversation.messages.length === 0 ? (
+                    <p className="text-xs text-neutral-500">No messages in this conversation.</p>
+                  ) : (
+                    <div className="max-h-64 space-y-1 overflow-y-auto">
+                      {viewedConversation.messages.map((m) => (
+                        <p key={m.id} className="text-xs">
+                          <span className="font-medium">{m.senderName}:</span> {m.text}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
           )}
 
           {tab === "reports" && (
@@ -264,6 +324,36 @@ function toDateString(value: unknown): string {
   }
   if (typeof value === "string") return value;
   return new Date(0).toISOString();
+}
+
+function countBy<T>(items: T[], keyFn: (item: T) => string): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const item of items) {
+    const key = keyFn(item);
+    counts[key] = (counts[key] ?? 0) + 1;
+  }
+  return counts;
+}
+
+function BreakdownCard({ title, counts }: { title: string; counts: Record<string, number> }) {
+  const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  return (
+    <div className="card">
+      <p className="mb-2 text-sm font-medium">{title}</p>
+      {entries.length === 0 ? (
+        <p className="text-xs text-neutral-400">No data yet.</p>
+      ) : (
+        <div className="space-y-1">
+          {entries.map(([label, count]) => (
+            <div key={label} className="flex items-center justify-between text-xs">
+              <span className="capitalize text-neutral-600">{label.replace(/_/g, " ")}</span>
+              <span className="font-tag font-medium">{count}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function Stat({ label, value }: { label: string; value: number }) {

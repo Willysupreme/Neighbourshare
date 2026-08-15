@@ -22,6 +22,11 @@ export interface AppUser {
   // verified neighbours. Off by default - opting into a stricter
   // gate, not a default restriction.
   restrictToVerifiedRequesters?: boolean;
+  // P1 notification preference: lets a user keep their wishlist active
+  // (still matching) while opting out of the alerts specifically.
+  // Defaults to true (enabled) when absent - the field only needs to
+  // exist once someone actually turns it off.
+  wishlistNotificationsEnabled?: boolean;
   createdAt: string; // ISO timestamp
   updatedAt: string;
 }
@@ -225,14 +230,15 @@ export type AuditAction =
   | "verification_request_rejected"
   | "item_created_on_behalf_of_owner"
   | "item_updated_by_representative"
-  | "role_changed";
+  | "role_changed"
+  | "admin_viewed_conversation";
 
 export interface AuditLogEntry {
   id: string;
   actorId: string;
   actorName: string;
   action: AuditAction;
-  targetType: "user" | "item";
+  targetType: "user" | "item" | "booking";
   targetId: string;
   details?: string;
   createdAt: string;

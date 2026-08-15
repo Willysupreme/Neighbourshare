@@ -1,5 +1,5 @@
 import { FieldValue, Firestore } from "firebase-admin/firestore";
-import { AuditAction } from "@/types";
+import { AuditAction, AuditLogEntry } from "@/types";
 
 export async function logAuditEntry(
   db: Firestore,
@@ -7,7 +7,7 @@ export async function logAuditEntry(
     actorId: string;
     actorName: string;
     action: AuditAction;
-    targetType: "user" | "item";
+    targetType: AuditLogEntry["targetType"];
     targetId: string;
     details?: string;
   }

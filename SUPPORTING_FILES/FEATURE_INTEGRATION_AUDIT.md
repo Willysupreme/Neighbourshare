@@ -72,6 +72,22 @@ P1 items (Communication audit / admin conversation access, richer
 notification preferences beyond the single toggle already built, advanced
 admin analytics) remain deferred, as does all of P2.
 
+## Update - Round 3 (all P1 items)
+
+All P1 items are now built: admin communication audit (#3 - viewing a
+booking's conversation requires a reason of at least 10 characters and is
+audit-logged before any data is returned; the Firestore rule was also
+tightened to remove admin from the direct client-read path, so this API
+route is the *only* way an admin can access conversation content, not just
+the recommended one), wishlist notification opt-out (part of #12), and
+expanded admin analytics (listings by category, bookings by state, users
+by verification status).
+
+Only P2 items remain unbuilt, per the master document's own instruction
+not to implement P2 unless it already exists: payments, deposits,
+insurance, mobile apps, QR handover, AI recommendations, advanced
+reputation modelling. None of these exist and none were built.
+
 ## What this means practically
 
 Two items above are not simple "add a feature" tasks and are worth a direct
