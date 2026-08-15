@@ -51,6 +51,12 @@ function DashboardContent() {
           <Link href="/dashboard/blocked" className="text-xs text-neutral-500 hover:text-ink hover:underline">
             Blocked users
           </Link>
+          <Link href="/dashboard/wishlist" className="text-xs text-neutral-500 hover:text-ink hover:underline">
+            Wishlist
+          </Link>
+          <Link href="/dashboard/settings" className="text-xs text-neutral-500 hover:text-ink hover:underline">
+            Settings
+          </Link>
           <div className="flex gap-2 rounded-md bg-neutral-100 p-1 text-sm">
             <button
               onClick={() => setView("owner")}

@@ -77,6 +77,20 @@ function AdminContent() {
     loadAll();
   }
 
+  async function toggleRepresentative(user: AppUser) {
+    const nextRole = user.role === "representative" ? "user" : "representative";
+    const confirmMsg =
+      nextRole === "representative"
+        ? `Make ${user.name} a neighbourhood representative? They'll be able to list items on behalf of residents in their own neighbourhood.`
+        : `Remove ${user.name}'s representative status?`;
+    if (!window.confirm(confirmMsg)) return;
+    await authedFetch(`/api/admin/users/${user.uid}/role`, {
+      method: "POST",
+      body: JSON.stringify({ role: nextRole }),
+    });
+    loadAll();
+  }
+
   const openReports = reports.filter((r) => r.status === "OPEN").length;
   const pendingVerifications = verificationRequests.filter((v) => v.status === "PENDING").length;
 
@@ -114,11 +128,12 @@ function AdminContent() {
 
           {tab === "users" && (
             <Table
-              headers={["Name", "Email", "Neighborhood", "Status", "Trust", ""]}
+              headers={["Name", "Email", "Neighborhood", "Role", "Status", "Trust", ""]}
               rows={users.map((u) => [
                 u.name,
                 u.email,
                 u.neighborhoodId,
+                u.role,
                 <span
                   key="status"
                   className={`badge ${u.accountStatus === "active" ? "bg-leaf-light text-leaf" : "bg-red-100 text-red-700"}`}
@@ -131,9 +146,14 @@ function AdminContent() {
                     admin
                   </span>
                 ) : (
-                  <button key="action" onClick={() => toggleSuspend(u)} className="btn-secondary">
-                    {u.accountStatus === "active" ? "Suspend" : "Reinstate"}
-                  </button>
+                  <div key="actions" className="flex flex-wrap gap-2">
+                    <button onClick={() => toggleSuspend(u)} className="btn-secondary">
+                      {u.accountStatus === "active" ? "Suspend" : "Reinstate"}
+                    </button>
+                    <button onClick={() => toggleRepresentative(u)} className="btn-secondary">
+                      {u.role === "representative" ? "Revoke rep." : "Make rep."}
+                    </button>
+                  </div>
                 ),
               ])}
             />

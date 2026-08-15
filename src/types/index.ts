@@ -1,7 +1,7 @@
 // NeighborShare domain types
 // FR references map to SRS.pdf functional requirements (FR-xxx)
 
-export type UserRole = "user" | "admin";
+export type UserRole = "user" | "admin" | "representative";
 export type AccountStatus = "active" | "suspended";
 export type VerificationStatus = "unverified" | "pending" | "verified";
 
@@ -17,6 +17,11 @@ export interface AppUser {
   photoUrl?: string;
   trustScore: number; // 0-5, see src/lib/trust/trustScore.ts
   completedTransactions: number;
+  // Messaging Preferences: when true, this user only accepts new booking
+  // requests (and therefore chat, since chat is booking-scoped) from
+  // verified neighbours. Off by default - opting into a stricter
+  // gate, not a default restriction.
+  restrictToVerifiedRequesters?: boolean;
   createdAt: string; // ISO timestamp
   updatedAt: string;
 }
@@ -176,7 +181,22 @@ export type NotificationType =
   | "return_reminder"
   | "damage_reported"
   | "review_available"
-  | "verification_update";
+  | "verification_update"
+  | "wishlist_match";
+
+export interface Wishlist {
+  id: string;
+  userId: string;
+  category?: ItemCategory;
+  keyword?: string; // simple case-insensitive substring match against item name/description
+  radiusKm: number; // matching radius from the user's own neighborhood
+  active: boolean;
+  // Dedup: item IDs already notified for, so the same match never
+  // generates a second alert (e.g. if an item is edited after creation).
+  notifiedItemIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface AppNotification {
   id: string;
@@ -204,7 +224,8 @@ export type AuditAction =
   | "verification_request_approved"
   | "verification_request_rejected"
   | "item_created_on_behalf_of_owner"
-  | "item_updated_by_representative";
+  | "item_updated_by_representative"
+  | "role_changed";
 
 export interface AuditLogEntry {
   id: string;

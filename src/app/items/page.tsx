@@ -4,8 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
+import { useAuth } from "@/context/AuthContext";
 import { Item, ItemCategory, Neighborhood } from "@/types";
 import { listNeighborhoods } from "@/lib/neighborhoods/directory";
+import { haversineDistanceKm } from "@/lib/neighborhoods/distance";
 
 const CATEGORY_LABELS: Record<ItemCategory, string> = {
   power_tools: "Power tools",
@@ -16,13 +18,17 @@ const CATEGORY_LABELS: Record<ItemCategory, string> = {
   other: "Other",
 };
 
+const RADIUS_OPTIONS = [1, 2, 5, 10, 25];
+
 export default function BrowseItemsPage() {
+  const { profile } = useAuth();
   const [items, setItems] = useState<Item[]>([]);
   const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<ItemCategory | "all">("all");
   const [neighborhoodId, setNeighborhoodId] = useState<string | "all">("all");
+  const [radiusKm, setRadiusKm] = useState<number | "any">("any");
 
   useEffect(() => {
     async function load() {
@@ -43,6 +49,12 @@ export default function BrowseItemsPage() {
     load();
   }, []);
 
+  const myNeighborhood = useMemo(
+    () => neighborhoods.find((n) => n.id === profile?.neighborhoodId),
+    [neighborhoods, profile?.neighborhoodId]
+  );
+  const neighborhoodById = useMemo(() => new Map(neighborhoods.map((n) => [n.id, n])), [neighborhoods]);
+
   const filtered = useMemo(() => {
     return items.filter((item) => {
       if (category !== "all" && item.category !== category) return false;
@@ -51,9 +63,20 @@ export default function BrowseItemsPage() {
         const haystack = `${item.name} ${item.description}`.toLowerCase();
         if (!haystack.includes(search.trim().toLowerCase())) return false;
       }
+      if (radiusKm !== "any" && myNeighborhood?.latitude != null && myNeighborhood?.longitude != null) {
+        const itemNeighborhood = neighborhoodById.get(item.neighborhoodId);
+        if (itemNeighborhood?.latitude == null || itemNeighborhood?.longitude == null) return false;
+        const distance = haversineDistanceKm(
+          myNeighborhood.latitude,
+          myNeighborhood.longitude,
+          itemNeighborhood.latitude,
+          itemNeighborhood.longitude
+        );
+        if (distance > radiusKm) return false;
+      }
       return true;
     });
-  }, [items, category, neighborhoodId, search]);
+  }, [items, category, neighborhoodId, search, radiusKm, myNeighborhood, neighborhoodById]);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
@@ -90,6 +113,20 @@ export default function BrowseItemsPage() {
             </option>
           ))}
         </select>
+        {myNeighborhood?.latitude != null && (
+          <select
+            className="input"
+            value={radiusKm}
+            onChange={(e) => setRadiusKm(e.target.value === "any" ? "any" : Number(e.target.value))}
+          >
+            <option value="any">Any distance</option>
+            {RADIUS_OPTIONS.map((r) => (
+              <option key={r} value={r}>
+                Within {r}km
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       {loading ? (

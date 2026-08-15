@@ -59,6 +59,19 @@ named file.
 | 19 | Technical debt register | **Missing as a standalone file** | Individual technical debt items are already documented inline in code comments (e.g. `NS-TD-01` for the verification code simplification, referenced in the SRS), but there is no consolidated `technical_debt_register.md` yet - this is part of the Technical_Debt_Plan.pdf we were about to start. |
 | 20 | Documentation | **In progress, incomplete** | SRS.pdf exists (11 pages) but was written against the system as it stood before this feature set was proposed - it does not yet cover messaging-as-a-standalone-model, wishlist, the new verification workflow, or location privacy rules, because none of those existed when it was written. |
 
+## Update - Round 2 (all remaining P0 items)
+
+As of this commit, every item classified above as "Missing" for the P0
+priority tier has been built: Wishlist (#11/#12), Discovery Radius (#10),
+`NEIGHBOUR_REPRESENTATIVE` role (#16), and Messaging Preferences (part of
+#4). The only P0 item still not built is the generalized `conversations`
+model (#1) - booking-scoped chat was kept deliberately, per the earlier
+audit's recommendation, rather than rebuilt into a new schema.
+
+P1 items (Communication audit / admin conversation access, richer
+notification preferences beyond the single toggle already built, advanced
+admin analytics) remain deferred, as does all of P2.
+
 ## What this means practically
 
 Two items above are not simple "add a feature" tasks and are worth a direct

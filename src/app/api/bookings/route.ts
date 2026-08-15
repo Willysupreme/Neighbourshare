@@ -85,6 +85,20 @@ export async function POST(req: NextRequest) {
         throw new AuthError("This item's owner isn't available to receive requests from you.", 403);
       }
 
+      const ownerSnap = await tx.get(db.collection("users").doc(item.ownerId));
+      const ownerData = ownerSnap.exists ? (ownerSnap.data() as { name?: string; restrictToVerifiedRequesters?: boolean }) : {};
+      const ownerName = ownerData.name ?? "Neighbor";
+
+      // Messaging Preferences: an owner can opt into only accepting
+      // requests from verified neighbours. profile.verificationStatus is
+      // already re-checked above (blocks unverified users entirely), so
+      // this only adds a real restriction once that basic gate is
+      // eventually loosened - documented now so the behavior is correct
+      // either way.
+      if (ownerData.restrictToVerifiedRequesters && profile.verificationStatus !== "verified") {
+        throw new AuthError("This owner only accepts requests from verified neighbours.", 403);
+      }
+
       // Read all bookings for this item inside the transaction so a
       // concurrent write to any of them forces this transaction to retry.
       const existingSnap = await tx.get(bookingsRef.where("itemId", "==", itemId));
@@ -97,9 +111,6 @@ export async function POST(req: NextRequest) {
           409
         );
       }
-
-      const ownerSnap = await tx.get(db.collection("users").doc(item.ownerId));
-      const ownerName = ownerSnap.exists ? (ownerSnap.data() as { name?: string }).name ?? "Neighbor" : "Neighbor";
 
       const now = FieldValue.serverTimestamp();
       const newBooking: Omit<Booking, "createdAt" | "updatedAt"> & {

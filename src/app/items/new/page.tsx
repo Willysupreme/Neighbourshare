@@ -82,7 +82,7 @@ function NewItemForm() {
         method: "POST",
         body: JSON.stringify({
           ...parsed.data,
-          ...(profile?.role === "admin" && onBehalfOfUserId.trim()
+          ...(profile?.role && ["admin", "representative"].includes(profile.role) && onBehalfOfUserId.trim()
             ? { onBehalfOfUserId: onBehalfOfUserId.trim() }
             : {}),
         }),
@@ -102,10 +102,12 @@ function NewItemForm() {
         Share a tool or piece of equipment with your verified neighbors.
       </p>
 
-      {profile?.role === "admin" && (
+      {(profile?.role === "admin" || profile?.role === "representative") && (
         <label className="mt-6 block rounded-md border border-dashed border-line bg-paper-raised p-3">
           <span className="mb-1 block text-sm font-medium text-neutral-700">
-            List on behalf of (admin only) <span className="text-neutral-400">(optional)</span>
+            List on behalf of{" "}
+            {profile.role === "representative" ? "(neighbourhood representative)" : "(admin only)"}{" "}
+            <span className="text-neutral-400">(optional)</span>
           </span>
           <input
             className="input"
@@ -114,8 +116,9 @@ function NewItemForm() {
             onChange={(e) => setOnBehalfOfUserId(e.target.value)}
           />
           <p className="mt-1 text-xs text-neutral-500">
-            The resident stays the true owner - this just records that you helped list it for
-            them.
+            {profile.role === "representative"
+              ? "Only works for residents of your own neighbourhood."
+              : "The resident stays the true owner - this just records that you helped list it for them."}
           </p>
         </label>
       )}

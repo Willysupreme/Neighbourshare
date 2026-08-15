@@ -156,6 +156,13 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ---- wishlists ----
+    match /wishlists/{wishlistId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isActiveAccount() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isActiveAccount() && resource.data.userId == request.auth.uid;
+    }
+
     // ---- neighbourhoodVerificationRequests ----
     // Kept alongside the existing self-service verification code flow
     // (§9 MVP simplification) rather than replacing it - this gives users

@@ -36,7 +36,10 @@ export async function PATCH(
     }
     const item = snap.data() as Item;
 
-    if (item.ownerId !== uid && profile.role !== "admin") {
+    const isRepresentativeForThisItem =
+      profile.role === "representative" && item.neighborhoodId === profile.neighborhoodId;
+
+    if (item.ownerId !== uid && profile.role !== "admin" && !isRepresentativeForThisItem) {
       throw new AuthError("You can only edit your own listings.", 403);
     }
     // Removed listings (admin-moderated) can't be resurrected by the owner
@@ -58,7 +61,7 @@ export async function PATCH(
 
     await itemRef.update(updates);
 
-    if (profile.role === "admin" && item.ownerId !== uid) {
+    if ((profile.role === "admin" || profile.role === "representative") && item.ownerId !== uid) {
       await logAuditEntry(db, {
         actorId: uid,
         actorName: profile.name,
