@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
@@ -31,9 +31,14 @@ const plexMono = localFont({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
   title: "NeighborShare",
   description:
-    "A hyper-local tool & equipment sharing platform for coordinating trusted peer-to-peer resource sharing.",
+    "A hyper-local tool & equipment sharing platform - a web of trust woven between verified neighbors, coordinating peer-to-peer lending of tools and equipment.",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#f1e6c8",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
