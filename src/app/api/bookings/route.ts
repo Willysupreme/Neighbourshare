@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/firebase/admin";
 import { requireAuthenticatedUser, AuthError } from "@/lib/auth/verifyRequest";
 import { bookingRequestSchema } from "@/lib/validation/schemas";
 import { isRangeAvailable } from "@/lib/booking/overlap";
+import { notifyInTransaction } from "@/lib/notificationEngine";
 import { Booking, Item } from "@/types";
 
 /**
@@ -126,15 +127,11 @@ export async function POST(req: NextRequest) {
 
       tx.set(newBookingRef, newBooking);
 
-      const notificationRef = db.collection("notifications").doc();
-      tx.set(notificationRef, {
-        id: notificationRef.id,
+      notifyInTransaction(db, tx, {
         userId: item.ownerId,
         type: "request_received",
         message: `New borrow request for "${item.name}" (${startDate} to ${endDate}).`,
         relatedBookingId: newBookingRef.id,
-        read: false,
-        createdAt: now,
       });
 
       return { bookingId: newBookingRef.id };

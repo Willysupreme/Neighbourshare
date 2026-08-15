@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
+import { fuzzCoordinates } from "@/lib/neighborhoods/distance";
 import { Booking } from "@/types";
 
 export function ShareLocationButton({ booking }: { booking: Booking }) {
@@ -20,10 +21,14 @@ export function ShareLocationButton({ booking }: { booking: Booking }) {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
+          // Privacy: fuzz before persisting, not just before displaying -
+          // the precise value from getCurrentPosition never touches the
+          // database at all, so there's nothing precise to leak later.
+          const approx = fuzzCoordinates(pos.coords.latitude, pos.coords.longitude);
           await updateDoc(doc(db, "bookings", booking.id), {
             borrowerLocation: {
-              latitude: pos.coords.latitude,
-              longitude: pos.coords.longitude,
+              latitude: approx.latitude,
+              longitude: approx.longitude,
               capturedAt: new Date().toISOString(),
             },
             updatedAt: serverTimestamp(),
@@ -47,9 +52,9 @@ export function ShareLocationButton({ booking }: { booking: Booking }) {
     <div className="card">
       <p className="text-sm font-medium">Let {booking.ownerName} know where their item is</p>
       <p className="mt-1 text-xs text-neutral-500">
-        This shares a single location snapshot - not ongoing tracking - visible only to{" "}
-        {booking.ownerName} for this loan. It&apos;s automatically cleared once the item is
-        marked returned.
+        This shares an approximate location (fuzzed to within roughly 300m, not your exact
+        position) - not ongoing tracking - visible only to {booking.ownerName} for this loan.
+        It&apos;s automatically cleared once the item is marked returned.
       </p>
       {shared ? (
         <p className="mt-2 text-xs text-leaf">

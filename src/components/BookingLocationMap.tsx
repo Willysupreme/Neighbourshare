@@ -1,23 +1,10 @@
 "use client";
 
 import "leaflet/dist/leaflet.css";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
-import L from "leaflet";
+import { MapContainer, TileLayer, Circle, Popup } from "react-leaflet";
 import { formatRelativeTime } from "@/lib/formatRelativeTime";
 
-// Custom gold-colored pin as inline SVG, matching the app's design system -
-// avoids react-leaflet's well-known "default marker icon 404s" bundler
-// issue entirely, since no external image file is referenced at all.
-const pinIcon = L.divIcon({
-  className: "",
-  html: `<svg width="28" height="36" viewBox="0 0 28 36" xmlns="http://www.w3.org/2000/svg">
-    <path d="M14 0C6.3 0 0 6.3 0 14c0 10.5 14 22 14 22s14-11.5 14-22C28 6.3 21.7 0 14 0z" fill="#a8471f"/>
-    <circle cx="14" cy="14" r="5.5" fill="#efece2"/>
-  </svg>`,
-  iconSize: [28, 36],
-  iconAnchor: [14, 36],
-  popupAnchor: [0, -32],
-});
+const FUZZ_RADIUS_METERS = 300;
 
 export function BookingLocationMap({
   latitude,
@@ -44,16 +31,23 @@ export function BookingLocationMap({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         />
-        <Marker position={[latitude, longitude]} icon={pinIcon}>
+        {/* A shaded uncertainty circle rather than a pinpoint marker - this
+            honestly represents that the location is approximate (fuzzed by
+            up to ~300m), not an exact position. */}
+        <Circle
+          center={[latitude, longitude]}
+          radius={FUZZ_RADIUS_METERS}
+          pathOptions={{ color: "#a6790a", fillColor: "#a6790a", fillOpacity: 0.25 }}
+        >
           <Popup>
-            {label}
+            {label} - approximate area
             <br />
             Shared {capturedAgo}
           </Popup>
-        </Marker>
+        </Circle>
       </MapContainer>
       <p className="bg-paper-raised px-3 py-2 font-tag text-xs text-neutral-500">
-        {label} - shared {capturedAgo}
+        {label} - approximate area (±{FUZZ_RADIUS_METERS}m) - shared {capturedAgo}
       </p>
     </div>
   );

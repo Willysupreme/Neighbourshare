@@ -107,6 +107,11 @@ export default function ItemDetailPage() {
       {item.pickupInstructions && (
         <p className="mt-1 text-sm text-neutral-500">Pickup: {item.pickupInstructions}</p>
       )}
+      {item.createdOnBehalfOf && (
+        <p className="mt-2 inline-block rounded-sm bg-indigo-light px-2 py-0.5 font-tag text-xs text-indigo">
+          Managed by a neighbourhood representative
+        </p>
+      )}
 
       {isOwner ? (
         <div className="mt-8 flex items-center gap-3">

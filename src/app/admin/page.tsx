@@ -6,9 +6,9 @@ import { db } from "@/lib/firebase/client";
 import { RequireAuth } from "@/context/RequireAuth";
 import { authedFetch } from "@/lib/apiClient";
 import { formatRelativeTime } from "@/lib/formatRelativeTime";
-import { AppUser, Item, Booking, DamageReport, AuditLogEntry } from "@/types";
+import { AppUser, Item, Booking, DamageReport, AuditLogEntry, NeighborhoodVerificationRequest } from "@/types";
 
-type Tab = "overview" | "users" | "items" | "bookings" | "reports" | "audit";
+type Tab = "overview" | "users" | "items" | "bookings" | "reports" | "audit" | "verification";
 
 function AdminContent() {
   const [tab, setTab] = useState<Tab>("overview");
@@ -17,22 +17,25 @@ function AdminContent() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [reports, setReports] = useState<DamageReport[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [verificationRequests, setVerificationRequests] = useState<NeighborhoodVerificationRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
-    const [usersSnap, itemsSnap, bookingsSnap, reportsSnap, auditSnap] = await Promise.all([
+    const [usersSnap, itemsSnap, bookingsSnap, reportsSnap, auditSnap, verificationSnap] = await Promise.all([
       getDocs(collection(db, "users")),
       getDocs(collection(db, "items")),
       getDocs(query(collection(db, "bookings"), orderBy("createdAt", "desc"))),
       getDocs(collection(db, "damageReports")),
       getDocs(query(collection(db, "auditLogs"), orderBy("createdAt", "desc"))),
+      getDocs(query(collection(db, "neighbourhoodVerificationRequests"), orderBy("createdAt", "desc"))),
     ]);
     setUsers(usersSnap.docs.map((d) => d.data() as AppUser));
     setItems(itemsSnap.docs.map((d) => d.data() as Item));
     setBookings(bookingsSnap.docs.map((d) => d.data() as Booking));
     setReports(reportsSnap.docs.map((d) => d.data() as DamageReport));
     setAuditLogs(auditSnap.docs.map((d) => d.data() as AuditLogEntry));
+    setVerificationRequests(verificationSnap.docs.map((d) => d.data() as NeighborhoodVerificationRequest));
     setLoading(false);
   }, []);
 
@@ -64,14 +67,25 @@ function AdminContent() {
     loadAll();
   }
 
+  async function reviewRequest(requestId: string, decision: "approved" | "rejected", userName: string) {
+    const verb = decision === "approved" ? "Approve" : "Reject";
+    if (!window.confirm(`${verb} ${userName}'s verification request?`)) return;
+    await authedFetch(`/api/admin/verification-requests/${requestId}/review`, {
+      method: "POST",
+      body: JSON.stringify({ decision }),
+    });
+    loadAll();
+  }
+
   const openReports = reports.filter((r) => r.status === "OPEN").length;
+  const pendingVerifications = verificationRequests.filter((v) => v.status === "PENDING").length;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
       <h1 className="display-heading text-3xl">Admin dashboard</h1>
 
       <div className="mt-6 flex gap-2 border-b border-neutral-200 text-sm">
-        {(["overview", "users", "items", "bookings", "reports", "audit"] as Tab[]).map((t) => (
+        {(["overview", "users", "items", "bookings", "reports", "audit", "verification"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -80,6 +94,7 @@ function AdminContent() {
             }`}
           >
             {t} {t === "reports" && openReports > 0 && `(${openReports})`}
+            {t === "verification" && pendingVerifications > 0 && ` (${pendingVerifications})`}
           </button>
         ))}
       </div>
@@ -176,6 +191,42 @@ function AdminContent() {
                 log.action.replace(/_/g, " "),
                 `${log.targetType}:${log.targetId}`,
                 log.details ?? "—",
+              ])}
+            />
+          )}
+
+          {tab === "verification" && (
+            <Table
+              headers={["User", "Neighborhood", "Method", "Details", "Status", ""]}
+              rows={verificationRequests.map((v) => [
+                v.userName,
+                v.neighborhoodName,
+                v.verificationMethod.replace(/_/g, " "),
+                v.plusCode ?? v.notes ?? (v.approximateLatitude ? `~${v.approximateLatitude.toFixed(3)}, ${v.approximateLongitude?.toFixed(3)}` : "—"),
+                <span
+                  key="status"
+                  className={`badge ${
+                    v.status === "APPROVED"
+                      ? "bg-leaf-light text-leaf"
+                      : v.status === "REJECTED"
+                        ? "bg-red-100 text-red-700"
+                        : "bg-ochre-light text-ochre"
+                  }`}
+                >
+                  {v.status}
+                </span>,
+                v.status === "PENDING" || v.status === "UNDER_REVIEW" ? (
+                  <div key="actions" className="flex gap-2">
+                    <button onClick={() => reviewRequest(v.id, "approved", v.userName)} className="btn-primary">
+                      Approve
+                    </button>
+                    <button onClick={() => reviewRequest(v.id, "rejected", v.userName)} className="btn-secondary">
+                      Reject
+                    </button>
+                  </div>
+                ) : (
+                  "—"
+                ),
               ])}
             />
           )}

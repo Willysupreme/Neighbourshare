@@ -54,6 +54,15 @@ export interface Item {
   imageUrls: string[];
   pickupInstructions?: string;
   status: ItemStatus; // owner-controlled listing status
+  // Admin-assisted listing management: an administrator can create or edit
+  // a listing on a resident's behalf (e.g. for owners who aren't
+  // comfortable with the app themselves). ownerId is ALWAYS the true
+  // owner - it is never overwritten with the administrator's own id.
+  // createdBy/updatedBy record who actually performed the action, for
+  // accountability, without changing who owns the item.
+  createdBy?: string;
+  updatedBy?: string;
+  createdOnBehalfOf?: string; // present only when createdBy !== ownerId
   createdAt: string;
   updatedAt: string;
 }
@@ -161,10 +170,13 @@ export type NotificationType =
   | "request_received"
   | "request_approved"
   | "request_declined"
+  | "booking_cancelled"
+  | "item_returned"
   | "pickup_reminder"
   | "return_reminder"
   | "damage_reported"
-  | "review_available";
+  | "review_available"
+  | "verification_update";
 
 export interface AppNotification {
   id: string;
@@ -188,7 +200,11 @@ export type AuditAction =
   | "user_reinstated"
   | "item_removed"
   | "user_blocked"
-  | "user_unblocked";
+  | "user_unblocked"
+  | "verification_request_approved"
+  | "verification_request_rejected"
+  | "item_created_on_behalf_of_owner"
+  | "item_updated_by_representative";
 
 export interface AuditLogEntry {
   id: string;
@@ -207,5 +223,34 @@ export interface Message {
   senderId: string;
   senderName: string;
   text: string;
+  createdAt: string;
+}
+
+export type VerificationRequestStatus = "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED" | "EXPIRED";
+export type VerificationMethod = "plus_code" | "geolocation" | "manual_notes";
+
+export interface NeighborhoodVerificationRequest {
+  id: string;
+  userId: string;
+  userName: string;
+  neighborhoodId: string;
+  neighborhoodName: string;
+  verificationMethod: VerificationMethod;
+  // Approximate only - never precise. See fuzzCoordinates() in
+  // src/lib/neighborhoods/distance.ts. Plus Code is stored as the raw text
+  // the user typed, not geocoded server-side - that would require a
+  // billing-enabled Google Maps Platform account, which this project
+  // deliberately avoids (same reasoning as using Cloudinary over Firebase
+  // Storage, and Leaflet/OSM over Google Maps, elsewhere in the codebase).
+  // An admin reviewer can still manually cross-check a Plus Code by hand.
+  plusCode?: string;
+  approximateLatitude?: number;
+  approximateLongitude?: number;
+  notes?: string;
+  status: VerificationRequestStatus;
+  reviewedBy?: string;
+  reviewedByName?: string;
+  reviewedAt?: string;
+  reviewNotes?: string;
   createdAt: string;
 }

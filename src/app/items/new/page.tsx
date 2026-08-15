@@ -3,6 +3,7 @@
 import { useState, FormEvent, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { RequireAuth } from "@/context/RequireAuth";
+import { useAuth } from "@/context/AuthContext";
 import { itemSchema, ItemInput } from "@/lib/validation/schemas";
 import { authedFetch } from "@/lib/apiClient";
 import { uploadImagesToCloudinary, ImageUploadError } from "@/lib/cloudinary";
@@ -26,10 +27,12 @@ const CONDITIONS: { value: ItemCondition; label: string }[] = [
 
 function NewItemForm() {
   const router = useRouter();
+  const { profile } = useAuth();
   const [form, setForm] = useState<Partial<ItemInput>>({
     category: "power_tools",
     condition: "good",
   });
+  const [onBehalfOfUserId, setOnBehalfOfUserId] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -77,7 +80,12 @@ function NewItemForm() {
     try {
       const { itemId } = await authedFetch("/api/items", {
         method: "POST",
-        body: JSON.stringify(parsed.data),
+        body: JSON.stringify({
+          ...parsed.data,
+          ...(profile?.role === "admin" && onBehalfOfUserId.trim()
+            ? { onBehalfOfUserId: onBehalfOfUserId.trim() }
+            : {}),
+        }),
       });
       router.push(`/items/${itemId}`);
     } catch (err) {
@@ -93,6 +101,24 @@ function NewItemForm() {
       <p className="mt-1 text-sm text-neutral-600">
         Share a tool or piece of equipment with your verified neighbors.
       </p>
+
+      {profile?.role === "admin" && (
+        <label className="mt-6 block rounded-md border border-dashed border-line bg-paper-raised p-3">
+          <span className="mb-1 block text-sm font-medium text-neutral-700">
+            List on behalf of (admin only) <span className="text-neutral-400">(optional)</span>
+          </span>
+          <input
+            className="input"
+            placeholder="Paste the resident's user ID to list for them"
+            value={onBehalfOfUserId}
+            onChange={(e) => setOnBehalfOfUserId(e.target.value)}
+          />
+          <p className="mt-1 text-xs text-neutral-500">
+            The resident stays the true owner - this just records that you helped list it for
+            them.
+          </p>
+        </label>
+      )}
 
       <form onSubmit={handleSubmit} className="mt-8 space-y-4">
         <label className="block">

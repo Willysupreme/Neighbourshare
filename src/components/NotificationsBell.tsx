@@ -1,7 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, query, where, orderBy, limit, onSnapshot, doc, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  limit,
+  onSnapshot,
+  doc,
+  updateDoc,
+  writeBatch,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { useAuth } from "@/context/AuthContext";
 import { AppNotification } from "@/types";
@@ -49,6 +59,16 @@ export function NotificationsBell() {
     await updateDoc(doc(db, "notifications", id), { read: true });
   }
 
+  async function markAllRead() {
+    const unread = notifications.filter((n) => !n.read);
+    if (unread.length === 0) return;
+    const batch = writeBatch(db);
+    for (const n of unread) {
+      batch.update(doc(db, "notifications", n.id), { read: true });
+    }
+    await batch.commit();
+  }
+
   return (
     <div className="relative">
       <button
@@ -66,6 +86,13 @@ export function NotificationsBell() {
 
       {open && (
         <div className="absolute right-0 z-10 mt-2 w-80 rounded-lg border border-neutral-200 bg-white shadow-lg">
+          {unreadCount > 0 && (
+            <div className="flex justify-end border-b border-neutral-100 px-3 py-1.5">
+              <button onClick={markAllRead} className="text-xs text-gold hover:underline">
+                Mark all as read
+              </button>
+            </div>
+          )}
           <div className="max-h-96 overflow-y-auto">
             {notifications.length === 0 ? (
               <p className="p-4 text-sm text-neutral-500">No notifications yet.</p>

@@ -4,6 +4,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireAuthenticatedUser, AuthError } from "@/lib/auth/verifyRequest";
 import { itemSchema } from "@/lib/validation/schemas";
+import { logAuditEntry } from "@/lib/auditLog";
 import { Item } from "@/types";
 
 const updateSchema = itemSchema.partial().extend({
@@ -45,7 +46,7 @@ export async function PATCH(
       throw new AuthError("This listing was removed by an administrator and can't be edited.", 403);
     }
 
-    const updates: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
+    const updates: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp(), updatedBy: uid };
     const d = parsed.data;
     if (d.name !== undefined) updates.name = d.name;
     if (d.category !== undefined) updates.category = d.category;
@@ -56,6 +57,17 @@ export async function PATCH(
     if (d.status !== undefined) updates.status = d.status;
 
     await itemRef.update(updates);
+
+    if (profile.role === "admin" && item.ownerId !== uid) {
+      await logAuditEntry(db, {
+        actorId: uid,
+        actorName: profile.name,
+        action: "item_updated_by_representative",
+        targetType: "item",
+        targetId: itemId,
+        details: `${profile.name} edited "${item.name}" on behalf of its owner`,
+      });
+    }
 
     return NextResponse.json({ itemId, updated: true });
   } catch (err) {

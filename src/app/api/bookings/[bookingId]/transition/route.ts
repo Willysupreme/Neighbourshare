@@ -4,7 +4,8 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireAuthenticatedUser, AuthError } from "@/lib/auth/verifyRequest";
 import { canTransition, BookingActor } from "@/lib/booking/stateMachine";
-import { Booking, BookingState } from "@/types";
+import { notifyInTransaction } from "@/lib/notificationEngine";
+import { Booking, BookingState, NotificationType } from "@/types";
 
 const bodySchema = z.object({
   to: z.enum([
@@ -72,24 +73,21 @@ export async function POST(
 
       tx.update(bookingRef, updates);
 
-      const notificationRef = db.collection("notifications").doc();
       const notifyUserId = actor === "owner" ? booking.borrowerId : booking.ownerId;
-      const messages: Partial<Record<BookingState, string>> = {
-        APPROVED: "Your borrow request was approved.",
-        DECLINED: "Your borrow request was declined.",
-        CANCELLED: "A booking was cancelled.",
-        RETURNED: "The item has been marked as returned.",
-        COMPLETED: "Your booking is now complete - you can leave a review.",
+      const notificationInfo: Partial<Record<BookingState, { type: NotificationType; message: string }>> = {
+        APPROVED: { type: "request_approved", message: "Your borrow request was approved." },
+        DECLINED: { type: "request_declined", message: "Your borrow request was declined." },
+        CANCELLED: { type: "booking_cancelled", message: "A booking was cancelled." },
+        RETURNED: { type: "item_returned", message: "The item has been marked as returned." },
+        COMPLETED: { type: "review_available", message: "Your booking is now complete - you can leave a review." },
       };
-      if (messages[to]) {
-        tx.set(notificationRef, {
-          id: notificationRef.id,
+      const info = notificationInfo[to];
+      if (info) {
+        notifyInTransaction(db, tx, {
           userId: notifyUserId,
-          type: to === "APPROVED" ? "request_approved" : to === "DECLINED" ? "request_declined" : "review_available",
-          message: messages[to],
+          type: info.type,
+          message: info.message,
           relatedBookingId: bookingId,
-          read: false,
-          createdAt: FieldValue.serverTimestamp(),
         });
       }
 

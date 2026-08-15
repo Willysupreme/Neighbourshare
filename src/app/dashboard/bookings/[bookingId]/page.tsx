@@ -80,7 +80,7 @@ function BookingDetailContent() {
         profile.uid === booking.ownerId &&
         booking.borrowerLocation && (
           <div className="mt-6">
-            <p className="mb-2 text-sm font-medium">Where {booking.borrowerName} has it</p>
+            <p className="mb-2 text-sm font-medium">Approximate area where {booking.borrowerName} has it</p>
             <BookingLocationMap
               latitude={booking.borrowerLocation.latitude}
               longitude={booking.borrowerLocation.longitude}

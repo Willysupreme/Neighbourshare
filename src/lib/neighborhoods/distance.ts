@@ -51,6 +51,36 @@ export function verifyNeighborhoodCode(neighborhood: Pick<Neighborhood, "verific
   return neighborhood.verificationCode.trim().toLowerCase() === code.trim().toLowerCase();
 }
 
+/**
+ * Adds a random offset (default up to ~300m) to a coordinate pair before
+ * it is ever persisted, so precise residential/current-location data is
+ * never stored - only an approximate position. Applied at the point of
+ * capture (ShareLocationButton) rather than at display time, so the exact
+ * value never exists in the database even transiently.
+ *
+ * This is a privacy control, not a security one - it deliberately
+ * degrades precision rather than encrypting it, matching the spec's
+ * intent ("approximately 2km away" rather than an exact address).
+ */
+export function fuzzCoordinates(
+  lat: number,
+  lng: number,
+  radiusMeters = 300
+): { latitude: number; longitude: number } {
+  // Random point within a circle of the given radius, uniform by area
+  // (sqrt of a uniform random for radius avoids clustering at the center).
+  const angle = Math.random() * 2 * Math.PI;
+  const distance = radiusMeters * Math.sqrt(Math.random());
+
+  const metersPerDegreeLat = 111_320;
+  const metersPerDegreeLng = 111_320 * Math.cos((lat * Math.PI) / 180);
+
+  const dLat = (distance * Math.sin(angle)) / metersPerDegreeLat;
+  const dLng = (distance * Math.cos(angle)) / (metersPerDegreeLng || 1);
+
+  return { latitude: lat + dLat, longitude: lng + dLng };
+}
+
 /** Generates a shareable code for a newly created neighborhood, e.g. "OSU-4K7Q". */
 export function generateVerificationCode(name: string): string {
   const prefix = name
