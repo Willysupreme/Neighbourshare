@@ -9,6 +9,15 @@ const nextConfig: NextConfig = {
   // module load time, before our own route handler (and its try/catch)
   // ever runs.
   serverExternalPackages: ["firebase-admin"],
+  // Note: this alone wasn't sufficient - Turbopack's support for cleanly
+  // externalizing complex packages like firebase-admin is still
+  // incomplete (confirmed via Vercel's own runtime logs: "Failed to load
+  // external module firebase-admin-<hash>", persisting even with this
+  // setting in place). The actual fix is forcing production builds to use
+  // webpack instead (see the "build" script in package.json: "next build
+  // --webpack"), which has mature, reliable support for this. Dev mode
+  // keeps using Turbopack (default, untouched) since it was never the
+  // problem and is faster for local iteration.
 };
 
 export default nextConfig;
