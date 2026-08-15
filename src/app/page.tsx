@@ -1,11 +1,21 @@
 import Link from "next/link";
 
-const SAMPLE_TAGS = [
-  { name: "Cordless drill", code: "PWR-014", rotate: "-rotate-3" },
-  { name: "Extension ladder", code: "LAD-002", rotate: "rotate-2" },
-  { name: "Pressure washer", code: "PWR-009", rotate: "-rotate-1" },
-  { name: "Wheelbarrow", code: "GDN-021", rotate: "rotate-3" },
+const CAUGHT_ITEMS = [
+  { name: "Cordless drill", ring: 1, spoke: 1 },
+  { name: "Extension ladder", ring: 2, spoke: 3 },
+  { name: "Pressure washer", ring: 1, spoke: 5 },
+  { name: "Wheelbarrow", ring: 3, spoke: 7 },
 ];
+
+// Precomputed 8-spoke orb-web geometry (Ananse's eight legs), center (200,200).
+const RING_RADII = [55, 95, 135, 175];
+const SPOKE_ANGLES_DEG = [-90, -45, 0, 45, 90, 135, 180, 225];
+
+function pointOn(ring: number, spoke: number) {
+  const r = RING_RADII[ring];
+  const angle = (SPOKE_ANGLES_DEG[spoke] * Math.PI) / 180;
+  return { x: 200 + r * Math.cos(angle), y: 200 + r * Math.sin(angle) };
+}
 
 export default function HomePage() {
   return (
@@ -13,18 +23,16 @@ export default function HomePage() {
       <section className="mx-auto grid max-w-6xl gap-10 px-4 py-16 md:grid-cols-2 md:items-center md:py-24">
         <div>
           <h1 className="display-heading text-5xl leading-[0.95] text-ink sm:text-6xl">
-            Borrow what
+            A web of trust,
             <br />
-            you need from
+            woven between
             <br />
-            <span className="text-rust">neighbors you</span>
-            <br />
-            <span className="text-rust">trust.</span>
+            <span className="text-gold">neighbors.</span>
           </h1>
           <p className="mt-6 max-w-md text-neutral-700">
-            NeighborShare coordinates verified residents lending tools and equipment
-            nearby - no more group-chat chaos over who has the ladder and when it&apos;s
-            coming back.
+            Like Ananse spinning his threads, NeighborShare connects verified residents
+            lending tools and equipment nearby - no more group-chat chaos over who has
+            the ladder and when it&apos;s coming back.
           </p>
           <div className="mt-8 flex gap-3">
             <Link href="/register" className="btn-primary px-5 py-2.5 text-sm normal-case">
@@ -36,32 +44,71 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div className="relative hidden h-80 md:block" aria-hidden="true">
-          {SAMPLE_TAGS.map((tag, i) => (
-            <div
-              key={tag.code}
-              className={`group absolute w-44 ${tag.rotate} cursor-default border border-line bg-paper-raised p-3 shadow-sm transition-transform hover:rotate-0`}
-              style={{
-                top: `${(i % 2) * 130}px`,
-                left: `${i * 90}px`,
-                backgroundImage:
-                  "radial-gradient(circle at 50% 0, var(--paper) 3px, transparent 3.5px)",
-                backgroundSize: "16px 100%",
-                backgroundRepeat: "repeat-x",
-                paddingTop: "14px",
-              }}
-            >
-              <p className="font-tag text-[10px] uppercase tracking-widest text-ink/50">
-                {tag.code}
-              </p>
-              <p className="mt-1 font-display text-lg uppercase leading-tight text-ink">
-                {tag.name}
-              </p>
-              <p className="mt-2 inline-block rounded-sm bg-leaf-light px-1.5 py-0.5 font-tag text-[10px] uppercase tracking-wide text-leaf">
-                Available
-              </p>
-            </div>
-          ))}
+        <div className="relative hidden h-[400px] md:block" aria-hidden="true">
+          <svg viewBox="0 0 400 400" className="h-full w-full">
+            {SPOKE_ANGLES_DEG.map((deg, i) => {
+              const angle = (deg * Math.PI) / 180;
+              const x = 200 + RING_RADII[3] * Math.cos(angle);
+              const y = 200 + RING_RADII[3] * Math.sin(angle);
+              return (
+                <line
+                  key={i}
+                  x1={200}
+                  y1={200}
+                  x2={x}
+                  y2={y}
+                  stroke="var(--web)"
+                  strokeWidth="1"
+                />
+              );
+            })}
+            {RING_RADII.map((r) => {
+              const pts = SPOKE_ANGLES_DEG.map((deg) => {
+                const angle = (deg * Math.PI) / 180;
+                return `${200 + r * Math.cos(angle)},${200 + r * Math.sin(angle)}`;
+              }).join(" ");
+              return (
+                <polygon key={r} points={pts} fill="none" stroke="var(--web)" strokeWidth="1" />
+              );
+            })}
+            {/* Ananse at the center of his web */}
+            <g transform="translate(200,200)">
+              <circle r="10" fill="var(--ink)" />
+              {[...Array(8)].map((_, i) => {
+                const angle = (i * 45 * Math.PI) / 180;
+                return (
+                  <line
+                    key={i}
+                    x1={0}
+                    y1={0}
+                    x2={16 * Math.cos(angle)}
+                    y2={16 * Math.sin(angle)}
+                    stroke="var(--ink)"
+                    strokeWidth="1.5"
+                  />
+                );
+              })}
+            </g>
+            {CAUGHT_ITEMS.map((item) => {
+              const { x, y } = pointOn(item.ring, item.spoke);
+              return <circle key={item.name} cx={x} cy={y} r="5" fill="var(--gold)" />;
+            })}
+          </svg>
+
+          {CAUGHT_ITEMS.map((item) => {
+            const { x, y } = pointOn(item.ring, item.spoke);
+            return (
+              <div
+                key={item.name}
+                className="absolute w-32 -translate-x-1/2 rounded-sm border border-line bg-paper-raised px-2 py-1 text-center shadow-sm"
+                style={{ left: `${(x / 400) * 100}%`, top: `${(y / 400) * 100}%` }}
+              >
+                <p className="font-tag text-[10px] uppercase tracking-wide text-ink/80">
+                  {item.name}
+                </p>
+              </div>
+            );
+          })}
         </div>
       </section>
 

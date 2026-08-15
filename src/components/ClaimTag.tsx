@@ -14,12 +14,12 @@ const STATE_LABELS: Record<BookingState, string> = {
 };
 
 // Each state maps to one of the palette's semantic tones.
-const STATE_TONE: Record<BookingState, "ochre" | "denim" | "leaf" | "clay" | "ink"> = {
+const STATE_TONE: Record<BookingState, "ochre" | "indigo" | "leaf" | "clay" | "ink"> = {
   REQUESTED: "ochre",
-  APPROVED: "denim",
-  RESERVED: "denim",
-  PICKED_UP: "denim",
-  IN_USE: "denim",
+  APPROVED: "indigo",
+  RESERVED: "indigo",
+  PICKED_UP: "indigo",
+  IN_USE: "indigo",
   RETURNED: "leaf",
   COMPLETED: "leaf",
   DECLINED: "clay",
@@ -29,7 +29,7 @@ const STATE_TONE: Record<BookingState, "ochre" | "denim" | "leaf" | "clay" | "in
 
 const TONE_CLASSES: Record<string, string> = {
   ochre: "bg-ochre-light text-ochre border-ochre/30",
-  denim: "bg-denim-light text-denim border-denim/30",
+  indigo: "bg-indigo-light text-indigo border-indigo/30",
   leaf: "bg-leaf-light text-leaf border-leaf/30",
   clay: "bg-clay-light text-clay border-clay/30",
   ink: "bg-line/40 text-ink/60 border-ink/20",

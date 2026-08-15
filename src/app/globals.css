@@ -7,38 +7,50 @@
  * foliage, hardware-bin labels) rather than a generic SaaS gradient.
  * Deliberately NOT the cream+terracotta or near-black+neon defaults.
  */
+/*
+ * NeighborShare design tokens - "Kweku Ananse" theme.
+ * Grounded in the subject: Ananse, the Akan trickster-spider who weaves
+ * stories and webs that connect people - a fitting frame for a platform
+ * that weaves trust between neighbors, one borrowed tool at a time.
+ * Palette draws from kente gold, adinkra-cloth indigo, and parchment -
+ * deliberately not the generic cream+terracotta or near-black+neon defaults
+ * (warmer/more saturated parchment than the flagged #F4F1EA, gold rather
+ * than terracotta as the primary accent, no serif display face).
+ */
 :root {
-  --ink: #1c1f1a;        /* charcoal, like oxidized steel */
-  --paper: #efece2;       /* cool stone/concrete, not warm cream */
-  --paper-raised: #f8f6ef;
-  --rust: #a8471f;        /* burnt rust - primary action color */
-  --rust-dark: #8a3a19;
-  --leaf: #35603f;        /* deep foliage green - "available/success" */
-  --leaf-light: #e4ece5;
-  --ochre: #a97a1f;       /* mustard/hardware-bin label - "pending" */
-  --ochre-light: #f3ead2;
-  --denim: #3c6478;       /* faded workshop blue - secondary/info */
-  --denim-light: #e1eaee;
-  --clay: #9c3b34;        /* muted red-brown - "declined/error" */
-  --clay-light: #f4e2df;
-  --line: #d8d4c6;        /* hairline borders on stone paper */
+  --ink: #1a1611;         /* Ananse-black, near-black with warmth */
+  --paper: #f1e6c8;        /* golden parchment - storytelling cloth/paper */
+  --paper-raised: #f8f1dc;
+  --gold: #a6790a;         /* wisdom/wealth gold - primary action color */
+  --gold-dark: #7d5a06;
+  --leaf: #2f5233;         /* forest green - "available/success" */
+  --leaf-light: #e3ede4;
+  --ochre: #c9a227;        /* mustard - "pending" */
+  --ochre-light: #f7efd6;
+  --indigo: #2e3a6b;       /* adinkra-cloth indigo - secondary/info */
+  --indigo-light: #e2e5f2;
+  --clay: #8a2e1e;         /* warm red-brown - "declined/error" */
+  --clay-light: #f2e0da;
+  --line: #d9cba3;         /* hairline borders on parchment */
+  --web: #b8a878;          /* thread color for spider-web line motifs */
 }
 
 @theme inline {
   --color-ink: var(--ink);
   --color-paper: var(--paper);
   --color-paper-raised: var(--paper-raised);
-  --color-rust: var(--rust);
-  --color-rust-dark: var(--rust-dark);
+  --color-gold: var(--gold);
+  --color-gold-dark: var(--gold-dark);
   --color-leaf: var(--leaf);
   --color-leaf-light: var(--leaf-light);
   --color-ochre: var(--ochre);
   --color-ochre-light: var(--ochre-light);
-  --color-denim: var(--denim);
-  --color-denim-light: var(--denim-light);
+  --color-indigo: var(--indigo);
+  --color-indigo-light: var(--indigo-light);
   --color-clay: var(--clay);
   --color-clay-light: var(--clay-light);
   --color-line: var(--line);
+  --color-web: var(--web);
 
   --font-display: var(--font-display);
   --font-body: var(--font-body);
@@ -52,7 +64,7 @@ body {
 
 @layer components {
   .input {
-    @apply w-full rounded border border-line bg-paper-raised px-3 py-2 text-sm text-ink shadow-sm outline-none transition-colors focus:border-rust focus:ring-1 focus:ring-rust;
+    @apply w-full rounded border border-line bg-paper-raised px-3 py-2 text-sm text-ink shadow-sm outline-none transition-colors focus:border-gold focus:ring-1 focus:ring-gold;
   }
   .card {
     @apply rounded border border-line bg-paper-raised p-4 shadow-sm;
@@ -61,7 +73,7 @@ body {
     @apply inline-flex items-center rounded-full px-2.5 py-0.5 font-tag text-xs font-medium tracking-wide;
   }
   .btn-primary {
-    @apply rounded bg-rust px-3 py-1.5 text-sm font-medium text-paper-raised transition-colors hover:bg-rust-dark disabled:opacity-50;
+    @apply rounded bg-gold px-3 py-1.5 text-sm font-medium text-paper-raised transition-colors hover:bg-gold-dark disabled:opacity-50;
   }
   .btn-secondary {
     @apply rounded border border-line bg-paper-raised px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:border-ink disabled:opacity-50;

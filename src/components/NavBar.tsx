@@ -17,8 +17,25 @@ export function NavBar() {
   return (
     <header className="border-b border-line bg-paper-raised">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-        <Link href="/" className="display-heading text-xl text-ink">
-          Neighbor<span className="text-rust">Share</span>
+        <Link href="/" className="flex items-center gap-2 display-heading text-xl text-ink">
+          <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+            <circle cx="10" cy="10" r="3" fill="var(--ink)" />
+            {[...Array(8)].map((_, i) => {
+              const angle = (i * 45 * Math.PI) / 180;
+              return (
+                <line
+                  key={i}
+                  x1={10}
+                  y1={10}
+                  x2={10 + 9 * Math.cos(angle)}
+                  y2={10 + 9 * Math.sin(angle)}
+                  stroke="var(--ink)"
+                  strokeWidth="1.2"
+                />
+              );
+            })}
+          </svg>
+          Neighbor<span className="text-gold">Share</span>
         </Link>
 
         <nav className="flex items-center gap-5 font-tag text-xs uppercase tracking-wide">

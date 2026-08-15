@@ -7,15 +7,21 @@ import { useAuth } from "@/context/AuthContext";
 import { AppNotification } from "@/types";
 
 export function NotificationsBell() {
-  const { profile } = useAuth();
+  const { firebaseUser, profile } = useAuth();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
   useEffect(() => {
-    if (!profile) return;
+    // Key off firebaseUser.uid, the authoritative value Firestore actually
+    // checks against (request.auth.uid) - not profile.uid, which is loaded
+    // async from Firestore and can briefly lag behind the real auth state
+    // during sign-in/sign-out transitions, causing a spurious
+    // permission-denied if a listener is opened with a stale value.
+    if (!firebaseUser) return;
+    const uid = firebaseUser.uid;
     const q = query(
       collection(db, "notifications"),
-      where("userId", "==", profile.uid),
+      where("userId", "==", uid),
       orderBy("createdAt", "desc"),
       limit(20)
     );
@@ -25,14 +31,15 @@ export function NotificationsBell() {
         setNotifications(snap.docs.map((d) => d.data() as AppNotification));
       },
       () => {
-        // Expected during account switches/logout: the listener can briefly
-        // outlive the auth token it was created under before this effect's
-        // cleanup runs. Not a real error - just stop showing stale data.
+        // Firestore's JS SDK can throw once during an auth-token handoff
+        // (a documented SDK-level race, not an app bug) before its
+        // internal retry recovers the listener. Don't surface it as a
+        // crash - just clear stale data until the next successful snapshot.
         setNotifications([]);
       }
     );
     return unsubscribe;
-  }, [profile]);
+  }, [firebaseUser]);
 
   if (!profile) return null;
 

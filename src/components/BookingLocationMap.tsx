@@ -5,7 +5,7 @@ import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import L from "leaflet";
 import { formatRelativeTime } from "@/lib/formatRelativeTime";
 
-// Custom rust-colored pin as inline SVG, matching the app's design system -
+// Custom gold-colored pin as inline SVG, matching the app's design system -
 // avoids react-leaflet's well-known "default marker icon 404s" bundler
 // issue entirely, since no external image file is referenced at all.
 const pinIcon = L.divIcon({

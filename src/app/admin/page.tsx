@@ -72,7 +72,7 @@ function AdminContent() {
             key={t}
             onClick={() => setTab(t)}
             className={`border-b-2 px-3 py-2 capitalize ${
-              tab === t ? "border-rust font-medium text-leaf" : "border-transparent text-neutral-500"
+              tab === t ? "border-gold font-medium text-leaf" : "border-transparent text-neutral-500"
             }`}
           >
             {t} {t === "reports" && openReports > 0 && `(${openReports})`}

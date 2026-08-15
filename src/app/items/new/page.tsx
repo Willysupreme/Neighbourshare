@@ -202,7 +202,7 @@ function NewItemForm() {
         <button
           type="submit"
           disabled={submitting || uploading}
-          className="w-full rounded-md bg-rust px-4 py-2 font-medium text-white hover:bg-rust-dark disabled:opacity-50"
+          className="w-full rounded-md bg-gold px-4 py-2 font-medium text-white hover:bg-gold-dark disabled:opacity-50"
         >
           {uploading ? "Uploading photos..." : submitting ? "Publishing..." : "Publish listing"}
         </button>

@@ -7,10 +7,10 @@ import { NavBar } from "@/components/NavBar";
 // Self-hosted (not next/font/google) - see src/fonts/OFL-*.txt for licenses.
 // All three are SIL Open Font License, sourced from Google's official
 // fonts repository.
-const bigShoulders = localFont({
-  src: "../fonts/BigShouldersDisplay-Variable.ttf",
+const bricolage = localFont({
+  src: "../fonts/BricolageGrotesque-Variable.ttf",
   variable: "--font-display",
-  weight: "100 900",
+  weight: "200 800",
   display: "swap",
 });
 
@@ -40,7 +40,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${bigShoulders.variable} ${plexSans.variable} ${plexMono.variable} h-full antialiased`}
+      className={`${bricolage.variable} ${plexSans.variable} ${plexMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-paper text-ink font-body">
         <AuthProvider>
