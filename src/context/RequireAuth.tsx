@@ -3,15 +3,28 @@
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { UserRole } from "@/types";
 
 const EXEMPT_FROM_NEIGHBORHOOD_CHECK = ["/choose-neighborhood"];
+
+function isRoleAllowed(role: UserRole | undefined, requireAdmin: boolean, allowRoles?: UserRole[]) {
+  if (requireAdmin) return role === "admin";
+  if (allowRoles) return !!role && allowRoles.includes(role);
+  return true;
+}
 
 export function RequireAuth({
   children,
   requireAdmin = false,
+  allowRoles,
 }: {
   children: React.ReactNode;
   requireAdmin?: boolean;
+  // Rebuild Phase 10: more general than requireAdmin - lets a page allow
+  // e.g. ["admin", "representative"] without opening it to plain users,
+  // for pages like verification review that a representative should
+  // reach but the full /admin dashboard should not be opened to.
+  allowRoles?: UserRole[];
 }) {
   const { firebaseUser, profile, loading, logout } = useAuth();
   const router = useRouter();
@@ -23,7 +36,7 @@ export function RequireAuth({
       router.replace("/login");
       return;
     }
-    if (requireAdmin && profile && profile.role !== "admin") {
+    if (profile && !isRoleAllowed(profile.role, requireAdmin, allowRoles)) {
       router.replace("/dashboard");
       return;
     }
@@ -35,7 +48,7 @@ export function RequireAuth({
     ) {
       router.replace("/choose-neighborhood");
     }
-  }, [loading, firebaseUser, profile, requireAdmin, pathname, router]);
+  }, [loading, firebaseUser, profile, requireAdmin, allowRoles, pathname, router]);
 
   if (loading || !firebaseUser) {
     return (
@@ -61,7 +74,7 @@ export function RequireAuth({
     );
   }
 
-  if (requireAdmin && profile && profile.role !== "admin") {
+  if (profile && !isRoleAllowed(profile.role, requireAdmin, allowRoles)) {
     return null;
   }
 

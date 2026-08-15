@@ -173,7 +173,15 @@ service cloud.firestore {
     // (§9 MVP simplification) rather than replacing it - this gives users
     // without a working code a fallback path reviewed by an administrator.
     match /neighbourhoodVerificationRequests/{requestId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      // Rebuild Phase 10: a representative may read (review) requests for
+      // their own neighbourhood, matching brief §19's "admin/neighbourhood
+      // representative review" - not scoped to any other neighbourhood.
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin() ||
+        (userDoc(request.auth.uid).role == 'representative' &&
+         userDoc(request.auth.uid).neighborhoodId == resource.data.neighborhoodId)
+      );
       allow create: if isActiveAccount() &&
         request.resource.data.userId == request.auth.uid &&
         request.resource.data.status == 'PENDING';

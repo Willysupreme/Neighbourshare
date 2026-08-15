@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase/admin";
-import { requireAuthenticatedUser, requireAdmin, AuthError } from "@/lib/auth/verifyRequest";
+import { requireAuthenticatedUser, AuthError } from "@/lib/auth/verifyRequest";
 import { notify } from "@/lib/notificationEngine";
 import { logAuditEntry } from "@/lib/auditLog";
 import { NeighborhoodVerificationRequest } from "@/types";
@@ -19,7 +19,6 @@ export async function POST(
   try {
     const { requestId } = await params;
     const { uid, profile } = await requireAuthenticatedUser(req);
-    requireAdmin(profile);
 
     const body = await req.json();
     const parsed = bodySchema.safeParse(body);
@@ -33,6 +32,19 @@ export async function POST(
     if (!snap.exists) return NextResponse.json({ error: "Request not found." }, { status: 404 });
 
     const request = snap.data() as NeighborhoodVerificationRequest;
+
+    // Rebuild Phase 10: brief §19 requires "admin/neighbourhood
+    // representative review" - previously this route was admin-only.
+    // A representative may review requests, but only for their own
+    // neighbourhood, mirroring the existing admin-assisted-listing
+    // scoping pattern elsewhere in the codebase (never a representative's
+    // own self-judgement of an unrelated area).
+    const isRepresentativeForThisRequest =
+      profile.role === "representative" && request.neighborhoodId === profile.neighborhoodId;
+    if (profile.role !== "admin" && !isRepresentativeForThisRequest) {
+      throw new AuthError("You are not authorised to review this verification request.", 403);
+    }
+
     if (request.status !== "PENDING" && request.status !== "UNDER_REVIEW") {
       throw new AuthError("This request has already been reviewed.", 409);
     }

@@ -23,6 +23,14 @@
         { "fieldPath": "bookingId", "order": "ASCENDING" },
         { "fieldPath": "reviewerId", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "neighbourhoodVerificationRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "neighborhoodId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

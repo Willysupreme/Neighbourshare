@@ -64,6 +64,14 @@ function DashboardContent() {
           <Link href="/dashboard/settings" className="text-xs text-neutral-500 hover:text-ink hover:underline">
             Settings
           </Link>
+          {(profile.role === "representative" || profile.role === "admin") && (
+            <Link
+              href="/dashboard/verification-review"
+              className="text-xs text-neutral-500 hover:text-ink hover:underline"
+            >
+              Verification review
+            </Link>
+          )}
           <div className="flex gap-2 rounded-md bg-neutral-100 p-1 text-sm">
             <button
               onClick={() => setView("owner")}
