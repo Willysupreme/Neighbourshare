@@ -10,29 +10,19 @@ import { haversineDistanceKm } from "@/lib/neighborhoods/distance";
 import { Neighborhood, Wishlist } from "@/types";
 
 export async function POST(req: NextRequest) {
-  console.log("[items] POST entered");
   try {
-    console.log("[items] auth verification started");
     const { uid, profile } = await requireAuthenticatedUser(req);
-    console.log("[items] auth verification succeeded");
-
-    console.log("[items] request parsing started");
     const body = await req.json();
-    console.log("[items] request parsed");
 
-    console.log("[items] validation started");
     const parsed = itemSchema.safeParse(body);
     if (!parsed.success) {
-      console.log("[items] validation failed", parsed.error.issues[0]?.message);
       return NextResponse.json(
         { error: parsed.error.issues[0]?.message ?? "Invalid item details." },
         { status: 400 }
       );
     }
-    console.log("[items] validation successful");
 
     const db = adminDb();
-    console.log("[items] Firebase Admin db handle obtained");
 
     // Admin-assisted listing: admins can list on behalf of anyone;
     // representatives can only do so for residents of their own
@@ -59,7 +49,6 @@ export async function POST(req: NextRequest) {
     const itemRef = db.collection("items").doc();
     const now = FieldValue.serverTimestamp();
 
-    console.log("[items] Firestore write started");
     await itemRef.set({
       id: itemRef.id,
       ownerId,
@@ -77,7 +66,6 @@ export async function POST(req: NextRequest) {
       createdAt: now,
       updatedAt: now,
     });
-    console.log("[items] Firestore write completed", { itemId: itemRef.id });
 
     if (onBehalfOf) {
       await logAuditEntry(db, {
@@ -92,7 +80,6 @@ export async function POST(req: NextRequest) {
 
     // Wishlist matching (best-effort, non-blocking to the listing itself -
     // a failure here should never prevent the item from being created).
-    console.log("[items] wishlist matching started");
     try {
       await matchWishlistsForNewItem(db, {
         id: itemRef.id,
@@ -101,16 +88,13 @@ export async function POST(req: NextRequest) {
         category: parsed.data.category,
         neighborhoodId: ownerNeighborhoodId,
       });
-      console.log("[items] wishlist matching completed");
     } catch (matchErr) {
       console.error("[items] wishlist matching failed (non-fatal):", matchErr);
     }
 
-    console.log("[items] response generated", { status: 201 });
     return NextResponse.json({ itemId: itemRef.id }, { status: 201 });
   } catch (err) {
     if (err instanceof AuthError) {
-      console.log("[items] auth/validation error", { status: err.status, message: err.message });
       return NextResponse.json({ error: err.message }, { status: err.status });
     }
     console.error("[items] POST failed", {
