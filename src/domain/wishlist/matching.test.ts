@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { matchesWishlist } from "./wishlistMatching";
+import { matchesWishlist } from "./matching";
 
 const drill = { name: "Cordless drill", description: "18V drill with two batteries", category: "power_tools" as const };
 const ladder = { name: "Extension ladder", description: "6m aluminium ladder", category: "ladders_access" as const };
