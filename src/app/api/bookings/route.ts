@@ -43,6 +43,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Rebuild Phase 16: AccountRestriction enforcement.
+    if (profile.activeRestrictions?.includes("cannot_book")) {
+      return NextResponse.json(
+        { error: "Your account is currently restricted from creating new booking requests." },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json();
     const parsed = bookingRequestSchema.safeParse(body);
     if (!parsed.success) {

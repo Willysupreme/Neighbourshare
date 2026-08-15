@@ -1,5 +1,7 @@
 // User domain - see SRS.pdf FR-AUTH, FR-ADMIN, FR-ROLE, FR-MSGPREF
 
+import { RestrictionType } from "@/domain/moderation/types";
+
 export type UserRole = "user" | "admin" | "representative";
 export type AccountStatus = "active" | "suspended";
 export type VerificationStatus = "unverified" | "pending" | "verified";
@@ -25,6 +27,15 @@ export interface AppUser {
   // P1 notification preference: lets a user keep their wishlist active
   // (still matching) while opting out of the alerts specifically.
   wishlistNotificationsEnabled?: boolean;
+  // Rebuild Phase 16: denormalized summary of currently-active
+  // AccountRestriction types (see src/domain/moderation/types.ts) for this
+  // user. The full restriction history with reason/appliedBy/reviewDate
+  // lives in the accountRestrictions collection - this array exists only
+  // so both API routes AND Firestore rules can cheaply check "is this
+  // user currently restricted from X" without a query, which matters
+  // specifically for chat (a direct client write governed by rules, not
+  // an API route).
+  activeRestrictions?: RestrictionType[];
   createdAt: string; // ISO timestamp
   updatedAt: string;
 }

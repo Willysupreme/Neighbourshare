@@ -6,7 +6,7 @@ import { db } from "@/lib/firebase/client";
 import { RequireAuth } from "@/context/RequireAuth";
 import { authedFetch } from "@/lib/apiClient";
 import { formatRelativeTime } from "@/lib/formatRelativeTime";
-import { AppUser, Item, Booking, DamageReport, AuditLogEntry, NeighborhoodVerificationRequest, Message } from "@/types";
+import { AppUser, Item, Booking, DamageReport, AuditLogEntry, NeighborhoodVerificationRequest, Message, AccountRestriction } from "@/types";
 
 type Tab = "overview" | "users" | "items" | "bookings" | "reports" | "audit" | "verification";
 
@@ -17,19 +17,21 @@ function AdminContent() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [reports, setReports] = useState<DamageReport[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [restrictions, setRestrictions] = useState<AccountRestriction[]>([]);
   const [verificationRequests, setVerificationRequests] = useState<NeighborhoodVerificationRequest[]>([]);
   const [viewedConversation, setViewedConversation] = useState<{ bookingId: string; messages: Message[] } | null>(null);
   const [loading, setLoading] = useState(true);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
-    const [usersSnap, itemsSnap, bookingsSnap, reportsSnap, auditSnap, verificationSnap] = await Promise.all([
+    const [usersSnap, itemsSnap, bookingsSnap, reportsSnap, auditSnap, verificationSnap, restrictionsSnap] = await Promise.all([
       getDocs(collection(db, "users")),
       getDocs(collection(db, "items")),
       getDocs(query(collection(db, "bookings"), orderBy("createdAt", "desc"))),
       getDocs(collection(db, "damageReports")),
       getDocs(query(collection(db, "auditLogs"), orderBy("createdAt", "desc"))),
       getDocs(query(collection(db, "neighbourhoodVerificationRequests"), orderBy("createdAt", "desc"))),
+      getDocs(collection(db, "accountRestrictions")),
     ]);
     setUsers(usersSnap.docs.map((d) => d.data() as AppUser));
     setItems(itemsSnap.docs.map((d) => d.data() as Item));
@@ -37,6 +39,7 @@ function AdminContent() {
     setReports(reportsSnap.docs.map((d) => d.data() as DamageReport));
     setAuditLogs(auditSnap.docs.map((d) => d.data() as AuditLogEntry));
     setVerificationRequests(verificationSnap.docs.map((d) => d.data() as NeighborhoodVerificationRequest));
+    setRestrictions(restrictionsSnap.docs.map((d) => d.data() as AccountRestriction));
     setLoading(false);
   }, []);
 
@@ -75,6 +78,33 @@ function AdminContent() {
       method: "POST",
       body: JSON.stringify({ decision }),
     });
+    loadAll();
+  }
+
+  async function applyRestriction(user: AppUser) {
+    const type = window.prompt(
+      `Restrict ${user.name} - type exactly one of:\ncannot_book\ncannot_list\ncannot_message\nlisting_hidden`
+    );
+    if (!type) return;
+    if (!["cannot_book", "cannot_list", "cannot_message", "listing_hidden"].includes(type)) {
+      window.alert("Not a recognised restriction type - nothing was applied.");
+      return;
+    }
+    const reason = window.prompt("Reason for this restriction (at least 10 characters):");
+    if (!reason || reason.trim().length < 10) {
+      if (reason !== null) window.alert("Reason must be at least 10 characters - nothing was applied.");
+      return;
+    }
+    await authedFetch(`/api/admin/users/${user.uid}/restrictions`, {
+      method: "POST",
+      body: JSON.stringify({ restrictionType: type, reason: reason.trim() }),
+    });
+    loadAll();
+  }
+
+  async function liftRestriction(restriction: AccountRestriction) {
+    if (!window.confirm(`Lift the "${restriction.restrictionType}" restriction?`)) return;
+    await authedFetch(`/api/admin/restrictions/${restriction.id}/lift`, { method: "POST" });
     loadAll();
   }
 
@@ -180,13 +210,37 @@ function AdminContent() {
                     admin
                   </span>
                 ) : (
-                  <div key="actions" className="flex flex-wrap gap-2">
-                    <button onClick={() => toggleSuspend(u)} className="btn-secondary">
-                      {u.accountStatus === "active" ? "Suspend" : "Reinstate"}
-                    </button>
-                    <button onClick={() => toggleRepresentative(u)} className="btn-secondary">
-                      {u.role === "representative" ? "Revoke rep." : "Make rep."}
-                    </button>
+                  <div key="actions" className="flex flex-col gap-1">
+                    <div className="flex flex-wrap gap-2">
+                      <button onClick={() => toggleSuspend(u)} className="btn-secondary">
+                        {u.accountStatus === "active" ? "Suspend" : "Reinstate"}
+                      </button>
+                      <button onClick={() => toggleRepresentative(u)} className="btn-secondary">
+                        {u.role === "representative" ? "Revoke rep." : "Make rep."}
+                      </button>
+                      <button onClick={() => applyRestriction(u)} className="btn-secondary">
+                        Restrict...
+                      </button>
+                    </div>
+                    {(u.activeRestrictions?.length ?? 0) > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {u.activeRestrictions!.map((r) => {
+                          const active = restrictions.find(
+                            (rec) => rec.userId === u.uid && rec.restrictionType === r && rec.status === "active"
+                          );
+                          return (
+                            <button
+                              key={r}
+                              onClick={() => active && liftRestriction(active)}
+                              className="badge bg-ochre-light text-ochre"
+                              title="Click to lift"
+                            >
+                              {r.replace(/_/g, " ")} ✕
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 ),
               ])}

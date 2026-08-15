@@ -130,7 +130,8 @@ service cloud.firestore {
         allow read: if isBookingParty(bookingId);
         allow create: if isActiveAccount() && isBookingParty(bookingId) &&
           request.resource.data.senderId == request.auth.uid &&
-          !otherPartyBlockedSender(bookingId);
+          !otherPartyBlockedSender(bookingId) &&
+          !('cannot_message' in userDoc(request.auth.uid).get('activeRestrictions', []));
         allow update, delete: if isAdmin();
       }
     }
@@ -189,6 +190,15 @@ service cloud.firestore {
       // route only, so every decision is paired with an audit log entry
       // and a notification - never a bare client-side status flip.
       allow update, delete: if false;
+    }
+
+    // ---- accountRestrictions ---- (Rebuild Phase 16)
+    // Written exclusively through the Admin SDK API routes (apply/lift),
+    // same pattern as auditLogs/blocks - so every restriction is always
+    // paired with a reason, an audit log entry, and a notification.
+    match /accountRestrictions/{restrictionId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if false;
     }
 
     // ---- blocks ---- (Trust & Moderation: Blocking)

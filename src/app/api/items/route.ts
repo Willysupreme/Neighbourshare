@@ -22,6 +22,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Rebuild Phase 16: AccountRestriction enforcement for the normal
+    // self-listing case. The on-behalf-of case is checked separately
+    // below, against the true resident's own restriction.
+    if (profile.activeRestrictions?.includes("cannot_list")) {
+      return NextResponse.json(
+        { error: "Your account is currently restricted from creating new listings." },
+        { status: 403 }
+      );
+    }
+
     const db = adminDb();
 
     // Admin-assisted listing: admins can list on behalf of anyone;
@@ -37,9 +47,16 @@ export async function POST(req: NextRequest) {
       if (!targetSnap.exists) {
         return NextResponse.json({ error: "That user could not be found." }, { status: 404 });
       }
-      const target = targetSnap.data() as { neighborhoodId?: string };
+      const target = targetSnap.data() as { neighborhoodId?: string; activeRestrictions?: string[] };
       if (profile.role === "representative" && target.neighborhoodId !== profile.neighborhoodId) {
         throw new AuthError("Representatives can only list items for residents of their own neighbourhood.", 403);
+      }
+      // Rebuild Phase 16: check the RESIDENT's own restriction here, not
+      // just the caller's - otherwise a cannot_list restriction could be
+      // trivially bypassed by having an admin/representative list on the
+      // restricted user's behalf.
+      if (target.activeRestrictions?.includes("cannot_list")) {
+        throw new AuthError("This resident is currently restricted from having new listings created.", 403);
       }
       ownerId = rawOnBehalfOf;
       ownerNeighborhoodId = target.neighborhoodId ?? profile.neighborhoodId;
