@@ -5,9 +5,10 @@ import { collection, getDocs, orderBy, query } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { RequireAuth } from "@/context/RequireAuth";
 import { authedFetch } from "@/lib/apiClient";
-import { AppUser, Item, Booking, DamageReport } from "@/types";
+import { formatRelativeTime } from "@/lib/formatRelativeTime";
+import { AppUser, Item, Booking, DamageReport, AuditLogEntry } from "@/types";
 
-type Tab = "overview" | "users" | "items" | "bookings" | "reports";
+type Tab = "overview" | "users" | "items" | "bookings" | "reports" | "audit";
 
 function AdminContent() {
   const [tab, setTab] = useState<Tab>("overview");
@@ -15,20 +16,23 @@ function AdminContent() {
   const [items, setItems] = useState<Item[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [reports, setReports] = useState<DamageReport[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
-    const [usersSnap, itemsSnap, bookingsSnap, reportsSnap] = await Promise.all([
+    const [usersSnap, itemsSnap, bookingsSnap, reportsSnap, auditSnap] = await Promise.all([
       getDocs(collection(db, "users")),
       getDocs(collection(db, "items")),
       getDocs(query(collection(db, "bookings"), orderBy("createdAt", "desc"))),
       getDocs(collection(db, "damageReports")),
+      getDocs(query(collection(db, "auditLogs"), orderBy("createdAt", "desc"))),
     ]);
     setUsers(usersSnap.docs.map((d) => d.data() as AppUser));
     setItems(itemsSnap.docs.map((d) => d.data() as Item));
     setBookings(bookingsSnap.docs.map((d) => d.data() as Booking));
     setReports(reportsSnap.docs.map((d) => d.data() as DamageReport));
+    setAuditLogs(auditSnap.docs.map((d) => d.data() as AuditLogEntry));
     setLoading(false);
   }, []);
 
@@ -67,7 +71,7 @@ function AdminContent() {
       <h1 className="display-heading text-3xl">Admin dashboard</h1>
 
       <div className="mt-6 flex gap-2 border-b border-neutral-200 text-sm">
-        {(["overview", "users", "items", "bookings", "reports"] as Tab[]).map((t) => (
+        {(["overview", "users", "items", "bookings", "reports", "audit"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -162,10 +166,33 @@ function AdminContent() {
               ])}
             />
           )}
+
+          {tab === "audit" && (
+            <Table
+              headers={["When", "Actor", "Action", "Target", "Details"]}
+              rows={auditLogs.map((log) => [
+                formatRelativeTime(toDateString(log.createdAt)),
+                log.actorName,
+                log.action.replace(/_/g, " "),
+                `${log.targetType}:${log.targetId}`,
+                log.details ?? "—",
+              ])}
+            />
+          )}
         </div>
       )}
     </div>
   );
+}
+
+// createdAt fields are typed as `string` for convenience but Firestore
+// actually returns Timestamp objects at runtime - normalize before parsing.
+function toDateString(value: unknown): string {
+  if (value && typeof value === "object" && "toDate" in value && typeof value.toDate === "function") {
+    return (value.toDate() as Date).toISOString();
+  }
+  if (typeof value === "string") return value;
+  return new Date(0).toISOString();
 }
 
 function Stat({ label, value }: { label: string; value: number }) {

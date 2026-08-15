@@ -71,6 +71,19 @@ export async function POST(req: NextRequest) {
         throw new AuthError("You cannot request to borrow your own item.", 400);
       }
 
+      // Trust & Moderation: a block in either direction stops new booking
+      // requests between the two parties. Checked inside the transaction
+      // for the same consistency guarantee as the availability check, even
+      // though blocks are read-only here (no race to protect against, just
+      // keeping all the request's validation in one place).
+      const [blockedByOwner, blockedOwner] = await Promise.all([
+        tx.get(db.collection("blocks").doc(`${item.ownerId}_${uid}`)),
+        tx.get(db.collection("blocks").doc(`${uid}_${item.ownerId}`)),
+      ]);
+      if (blockedByOwner.exists || blockedOwner.exists) {
+        throw new AuthError("This item's owner isn't available to receive requests from you.", 403);
+      }
+
       // Read all bookings for this item inside the transaction so a
       // concurrent write to any of them forces this transaction to retry.
       const existingSnap = await tx.get(bookingsRef.where("itemId", "==", itemId));

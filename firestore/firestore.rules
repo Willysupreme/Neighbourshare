@@ -38,6 +38,25 @@ service cloud.firestore {
         userDoc(request.auth.uid).accountStatus == 'active';
     }
 
+    function bookingDoc(bookingId) {
+      return get(/databases/$(database)/documents/bookings/$(bookingId)).data;
+    }
+
+    function isBookingParty(bookingId) {
+      let b = bookingDoc(bookingId);
+      return isSignedIn() && (b.ownerId == request.auth.uid || b.borrowerId == request.auth.uid);
+    }
+
+    // True if the OTHER party in this booking has blocked the current user -
+    // used to stop a blocked user from continuing to message someone who
+    // has blocked them, even though they're still technically a booking
+    // party (§ Trust & Moderation: Blocking).
+    function otherPartyBlockedSender(bookingId) {
+      let b = bookingDoc(bookingId);
+      let other = b.ownerId == request.auth.uid ? b.borrowerId : b.ownerId;
+      return exists(/databases/$(database)/documents/blocks/$(other + '_' + request.auth.uid));
+    }
+
     // ---- users ----
     match /users/{uid} {
       allow read: if isSignedIn();
@@ -96,6 +115,19 @@ service cloud.firestore {
          resource.data.borrowerId == request.auth.uid ||
          isAdmin());
       allow delete: if isAdmin();
+
+      // ---- bookings/{bookingId}/messages ---- (Chat, scoped to a booking)
+      // Deliberately scoped to a booking rather than open free-form DMs
+      // between any two neighbors: it keeps chat tied to a legitimate
+      // reason to talk (an actual lending transaction), which is both
+      // simpler to build and a smaller abuse surface than an open inbox.
+      match /messages/{messageId} {
+        allow read: if isBookingParty(bookingId) || isAdmin();
+        allow create: if isActiveAccount() && isBookingParty(bookingId) &&
+          request.resource.data.senderId == request.auth.uid &&
+          !otherPartyBlockedSender(bookingId);
+        allow update, delete: if isAdmin();
+      }
     }
 
     // ---- reviews ----
@@ -122,6 +154,26 @@ service cloud.firestore {
       allow read, update: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if isSignedIn(); // created by trusted server logic (API routes) with Admin SDK, which bypasses rules; this allows client-side fallback writes only to the user's own doc
       allow delete: if isAdmin();
+    }
+
+    // ---- blocks ---- (Trust & Moderation: Blocking)
+    // Written exclusively through API routes using the Admin SDK (which
+    // bypasses these rules), so we can validate the target user exists,
+    // prevent self-blocking, and write a matching audit log entry in one
+    // server-side transaction. Clients only ever read their own blocks.
+    match /blocks/{blockId} {
+      allow read: if isSignedIn() && (resource.data.blockerId == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+
+    // ---- auditLogs ---- (Trust & Moderation: Audit Logging)
+    // Admin-only read, no client writes at all - every entry is written
+    // server-side via src/lib/auditLog.ts from the specific API routes
+    // that perform a moderation action (suspend, remove listing,
+    // block/unblock), so the trail can't be tampered with or bypassed.
+    match /auditLogs/{logId} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireAuthenticatedUser, requireAdmin, AuthError } from "@/lib/auth/verifyRequest";
+import { logAuditEntry } from "@/lib/auditLog";
 import { z } from "zod";
 
 const bodySchema = z.object({ status: z.enum(["active", "suspended"]) });
@@ -26,11 +27,21 @@ export async function POST(
     const snap = await userRef.get();
     if (!snap.exists) return NextResponse.json({ error: "User not found." }, { status: 404 });
 
+    const targetName = (snap.data() as { role?: string; name?: string }).name ?? targetUid;
     if ((snap.data() as { role?: string }).role === "admin") {
       throw new AuthError("Administrators cannot be suspended through this action.", 400);
     }
 
     await userRef.update({ accountStatus: parsed.data.status, updatedAt: FieldValue.serverTimestamp() });
+
+    await logAuditEntry(db, {
+      actorId: profile.uid,
+      actorName: profile.name,
+      action: parsed.data.status === "suspended" ? "user_suspended" : "user_reinstated",
+      targetType: "user",
+      targetId: targetUid,
+      details: `${profile.name} ${parsed.data.status === "suspended" ? "suspended" : "reinstated"} ${targetName}`,
+    });
 
     return NextResponse.json({ uid: targetUid, accountStatus: parsed.data.status });
   } catch (err) {

@@ -175,3 +175,37 @@ export interface AppNotification {
   read: boolean;
   createdAt: string;
 }
+
+export interface Block {
+  id: string; // deterministic: `${blockerId}_${blockedId}`
+  blockerId: string;
+  blockedId: string;
+  createdAt: string;
+}
+
+export type AuditAction =
+  | "user_suspended"
+  | "user_reinstated"
+  | "item_removed"
+  | "user_blocked"
+  | "user_unblocked";
+
+export interface AuditLogEntry {
+  id: string;
+  actorId: string;
+  actorName: string;
+  action: AuditAction;
+  targetType: "user" | "item";
+  targetId: string;
+  details?: string;
+  createdAt: string;
+}
+
+export interface Message {
+  id: string;
+  bookingId: string;
+  senderId: string;
+  senderName: string;
+  text: string;
+  createdAt: string;
+}

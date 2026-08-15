@@ -47,19 +47,24 @@ function DashboardContent() {
     <div className="mx-auto max-w-5xl px-4 py-10">
       <div className="flex items-center justify-between">
         <h1 className="display-heading text-3xl">Dashboard</h1>
-        <div className="flex gap-2 rounded-md bg-neutral-100 p-1 text-sm">
-          <button
-            onClick={() => setView("owner")}
-            className={`rounded px-3 py-1 ${view === "owner" ? "bg-white shadow-sm font-medium" : "text-neutral-500"}`}
-          >
-            As owner
-          </button>
-          <button
-            onClick={() => setView("borrower")}
-            className={`rounded px-3 py-1 ${view === "borrower" ? "bg-white shadow-sm font-medium" : "text-neutral-500"}`}
-          >
-            As borrower
-          </button>
+        <div className="flex items-center gap-3">
+          <Link href="/dashboard/blocked" className="text-xs text-neutral-500 hover:text-ink hover:underline">
+            Blocked users
+          </Link>
+          <div className="flex gap-2 rounded-md bg-neutral-100 p-1 text-sm">
+            <button
+              onClick={() => setView("owner")}
+              className={`rounded px-3 py-1 ${view === "owner" ? "bg-white shadow-sm font-medium" : "text-neutral-500"}`}
+            >
+              As owner
+            </button>
+            <button
+              onClick={() => setView("borrower")}
+              className={`rounded px-3 py-1 ${view === "borrower" ? "bg-white shadow-sm font-medium" : "text-neutral-500"}`}
+            >
+              As borrower
+            </button>
+          </div>
         </div>
       </div>
 

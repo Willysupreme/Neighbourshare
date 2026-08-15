@@ -8,6 +8,7 @@ import { db } from "@/lib/firebase/client";
 import { useAuth } from "@/context/AuthContext";
 import { authedFetch } from "@/lib/apiClient";
 import { bookingRequestSchema } from "@/lib/validation/schemas";
+import { BlockUserButton } from "@/components/BlockUserButton";
 import { Item } from "@/types";
 
 export default function ItemDetailPage() {
@@ -16,6 +17,7 @@ export default function ItemDetailPage() {
   const router = useRouter();
 
   const [item, setItem] = useState<Item | null | undefined>(undefined);
+  const [ownerName, setOwnerName] = useState<string>("the owner");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [note, setNote] = useState("");
@@ -26,7 +28,16 @@ export default function ItemDetailPage() {
   useEffect(() => {
     async function load() {
       const snap = await getDoc(doc(db, "items", itemId));
-      setItem(snap.exists() ? (snap.data() as Item) : null);
+      if (!snap.exists()) {
+        setItem(null);
+        return;
+      }
+      const data = snap.data() as Item;
+      setItem(data);
+      const ownerSnap = await getDoc(doc(db, "users", data.ownerId));
+      if (ownerSnap.exists()) {
+        setOwnerName((ownerSnap.data() as { name?: string }).name ?? "the owner");
+      }
     }
     load();
   }, [itemId]);
@@ -154,6 +165,12 @@ export default function ItemDetailPage() {
           >
             {submitting ? "Sending..." : "Send request"}
           </button>
+
+          {firebaseUser && (
+            <div className="pt-1">
+              <BlockUserButton userId={item.ownerId} userName={ownerName} />
+            </div>
+          )}
         </form>
       )}
     </div>

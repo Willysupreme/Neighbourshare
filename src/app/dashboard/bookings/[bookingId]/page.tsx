@@ -11,6 +11,8 @@ import { authedFetch } from "@/lib/apiClient";
 import { damageReportSchema, reviewSchema } from "@/lib/validation/schemas";
 import { ClaimTag } from "@/components/ClaimTag";
 import { ShareLocationButton } from "@/components/ShareLocationButton";
+import { BookingChat } from "@/components/BookingChat";
+import { BlockUserButton } from "@/components/BlockUserButton";
 import { Booking, DamageSeverity } from "@/types";
 
 // Leaflet touches `window` on module load - must be client-only, no SSR.
@@ -57,6 +59,16 @@ function BookingDetailContent() {
           Condition after: <span className="capitalize">{booking.conditionAfter.replace("_", " ")}</span>
         </p>
       )}
+
+      <div className="mt-6">
+        <BookingChat bookingId={booking.id} />
+        <div className="mt-2">
+          <BlockUserButton
+            userId={profile.uid === booking.ownerId ? booking.borrowerId : booking.ownerId}
+            userName={profile.uid === booking.ownerId ? booking.borrowerName : booking.ownerName}
+          />
+        </div>
+      </div>
 
       {["PICKED_UP", "IN_USE"].includes(booking.state) && profile.uid === booking.borrowerId && (
         <div className="mt-6">
