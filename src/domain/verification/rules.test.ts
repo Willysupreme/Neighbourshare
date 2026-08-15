@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { haversineDistanceKm, sortByDistance, verifyNeighborhoodCode, generateVerificationCode, fuzzCoordinates } from "./distance";
+import { haversineDistanceKm, sortByDistance, verifyNeighborhoodCode, generateVerificationCode, fuzzCoordinates } from "./rules";
 
 describe("haversineDistanceKm", () => {
   it("returns ~0 for the same point", () => {
