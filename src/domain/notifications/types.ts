@@ -11,7 +11,8 @@ export type NotificationType =
   | "damage_reported"
   | "review_available"
   | "verification_update"
-  | "wishlist_match";
+  | "wishlist_match"
+  | "message_received";
 
 export interface AppNotification {
   id: string;

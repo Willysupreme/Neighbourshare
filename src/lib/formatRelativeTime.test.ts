@@ -19,4 +19,14 @@ describe("formatRelativeTime", () => {
   it("shows days for a day or more", () => {
     expect(formatRelativeTime("2025-12-30T12:00:00Z", now)).toBe("2d ago");
   });
+
+  it("handles a Firestore-Timestamp-like object (has toDate(), not a string)", () => {
+    const fakeTimestamp = { toDate: () => new Date("2026-01-01T11:45:00Z") };
+    expect(formatRelativeTime(fakeTimestamp, now)).toBe("15 min ago");
+  });
+
+  it("falls back to 'now' for a null/undefined value rather than crashing", () => {
+    expect(formatRelativeTime(null, now)).toBe("just now");
+    expect(formatRelativeTime(undefined, now)).toBe("just now");
+  });
 });
