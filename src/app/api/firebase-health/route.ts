@@ -51,7 +51,12 @@ export async function GET() {
       result.firestoreInitialized = true;
 
       result.firestoreReadAttempted = true;
-      await db.collection("__health_check__").limit(1).get();
+      // Avoid writing/reading any collection entirely (sidesteps reserved-
+      // name pitfalls like the "__health_check__" one this route
+      // originally hit) - listCollections() on a Firestore instance is
+      // enough to prove the connection and credentials actually work
+      // end-to-end, without touching application data at all.
+      await db.listCollections();
     } catch (initErr) {
       result.errorStage = result.adminInitialized ? "firestore" : "admin-init";
       result.error = initErr instanceof Error ? initErr.message : String(initErr);
