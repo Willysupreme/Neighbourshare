@@ -8,6 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 import { RequireAuth } from "@/context/RequireAuth";
 import { BookingActions } from "@/components/BookingActions";
 import { ClaimTag } from "@/components/ClaimTag";
+import { getTimeBasedGreeting, firstNameOf } from "@/lib/greeting";
 import { Booking, Item } from "@/types";
 
 function DashboardContent() {
@@ -40,13 +41,19 @@ function DashboardContent() {
 
   if (!profile) return null;
 
+  const greeting = getTimeBasedGreeting(new Date().getHours());
   const availableCount = items.filter((i) => i.status === "active").length;
   const pendingRequests = ownerBookings.filter((b) => b.state === "REQUESTED");
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
       <div className="flex items-center justify-between">
-        <h1 className="display-heading text-3xl">Dashboard</h1>
+        <div>
+          <h1 className="display-heading text-3xl">
+            {greeting}, {firstNameOf(profile.name)}
+          </h1>
+          <p className="mt-0.5 font-tag text-xs uppercase tracking-wide text-neutral-400">Dashboard</p>
+        </div>
         <div className="flex items-center gap-3">
           <Link href="/dashboard/blocked" className="text-xs text-neutral-500 hover:text-ink hover:underline">
             Blocked users
