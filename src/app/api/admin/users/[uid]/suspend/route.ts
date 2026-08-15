@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireAuthenticatedUser, requireAdmin, AuthError } from "@/lib/auth/verifyRequest";
 import { logAuditEntry } from "@/lib/auditLog";
+import { notify } from "@/lib/notificationEngine";
 import { z } from "zod";
 
 const bodySchema = z.object({ status: z.enum(["active", "suspended"]) });
@@ -41,6 +42,19 @@ export async function POST(
       targetType: "user",
       targetId: targetUid,
       details: `${profile.name} ${parsed.data.status === "suspended" ? "suspended" : "reinstated"} ${targetName}`,
+    });
+
+    // Rebuild Phase 14: this previously sent no notification at all - a
+    // suspended user would only find out by hitting the suspension
+    // screen mid-action. Brief §17 explicitly names MODERATION_UPDATE
+    // as a required event type.
+    await notify(db, {
+      userId: targetUid,
+      type: "moderation_update",
+      message:
+        parsed.data.status === "suspended"
+          ? "Your account has been suspended by an administrator."
+          : "Your account has been reinstated - you can use NeighborShare again.",
     });
 
     return NextResponse.json({ uid: targetUid, accountStatus: parsed.data.status });

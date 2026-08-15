@@ -12,7 +12,8 @@ export type NotificationType =
   | "review_available"
   | "verification_update"
   | "wishlist_match"
-  | "message_received";
+  | "message_received"
+  | "moderation_update";
 
 export interface AppNotification {
   id: string;
