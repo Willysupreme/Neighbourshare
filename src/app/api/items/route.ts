@@ -122,52 +122,61 @@ async function matchWishlistsForNewItem(
 
   const itemNeighborhood = itemNeighborhoodSnap.data() as Neighborhood;
   if (itemNeighborhood.latitude == null || itemNeighborhood.longitude == null) return;
+  // Captured into their own consts (not referenced via itemNeighborhood.X)
+  // because TypeScript's null-narrowing above doesn't persist into the
+  // async closure below - these are provably numbers, but only if bound
+  // outside it.
+  const itemLat = itemNeighborhood.latitude;
+  const itemLng = itemNeighborhood.longitude;
 
-  for (const wishlistDoc of wishlistsSnap.docs) {
-    const wishlist = wishlistDoc.data() as Wishlist;
-    if (wishlist.notifiedItemIds?.includes(item.id)) continue;
+  // Parallelized rather than a sequential for-loop: on a cold serverless
+  // function, awaiting each wishlist's owner+neighborhood lookup one at a
+  // time could add up enough to risk the platform's execution time limit.
+  // Running them concurrently keeps this fast regardless of wishlist count.
+  await Promise.all(
+    wishlistsSnap.docs.map(async (wishlistDoc) => {
+      const wishlist = wishlistDoc.data() as Wishlist;
+      if (wishlist.notifiedItemIds?.includes(item.id)) return;
 
-    const matches = matchesWishlist(
-      { name: item.name, description: item.description, category: item.category as never },
-      { category: wishlist.category, keyword: wishlist.keyword }
-    );
-    if (!matches) continue;
+      const matches = matchesWishlist(
+        { name: item.name, description: item.description, category: item.category as never },
+        { category: wishlist.category, keyword: wishlist.keyword }
+      );
+      if (!matches) return;
 
-    const ownerSnap = await db.collection("users").doc(wishlist.userId).get();
-    if (!ownerSnap.exists) continue;
-    const owner = ownerSnap.data() as {
-      neighborhoodId?: string;
-      name?: string;
-      wishlistNotificationsEnabled?: boolean;
-    };
-    if (!owner.neighborhoodId) continue;
+      const ownerSnap = await db.collection("users").doc(wishlist.userId).get();
+      if (!ownerSnap.exists) return;
+      const owner = ownerSnap.data() as {
+        neighborhoodId?: string;
+        name?: string;
+        wishlistNotificationsEnabled?: boolean;
+      };
+      if (!owner.neighborhoodId) return;
 
-    const ownerNeighborhoodSnap = await db.collection("neighborhoods").doc(owner.neighborhoodId).get();
-    if (!ownerNeighborhoodSnap.exists) continue;
-    const ownerNeighborhood = ownerNeighborhoodSnap.data() as Neighborhood;
-    if (ownerNeighborhood.latitude == null || ownerNeighborhood.longitude == null) continue;
+      const ownerNeighborhoodSnap = await db.collection("neighborhoods").doc(owner.neighborhoodId).get();
+      if (!ownerNeighborhoodSnap.exists) return;
+      const ownerNeighborhood = ownerNeighborhoodSnap.data() as Neighborhood;
+      if (ownerNeighborhood.latitude == null || ownerNeighborhood.longitude == null) return;
 
-    const distanceKm = haversineDistanceKm(
-      ownerNeighborhood.latitude,
-      ownerNeighborhood.longitude,
-      itemNeighborhood.latitude,
-      itemNeighborhood.longitude
-    );
-    if (distanceKm > wishlist.radiusKm) continue;
+      const distanceKm = haversineDistanceKm(
+        ownerNeighborhood.latitude,
+        ownerNeighborhood.longitude,
+        itemLat,
+        itemLng
+      );
+      if (distanceKm > wishlist.radiusKm) return;
 
-    // Notification preference (P1): a user can keep a wishlist active
-    // (still tracked, still deduped) while opting out of the alert itself.
-    // Defaults to enabled when the field has never been set.
-    if (owner.wishlistNotificationsEnabled !== false) {
-      await notify(db, {
-        userId: wishlist.userId,
-        type: "wishlist_match",
-        message: `Wishlist alert: "${item.name}" is now available approximately ${distanceKm.toFixed(1)}km away.`,
+      if (owner.wishlistNotificationsEnabled !== false) {
+        await notify(db, {
+          userId: wishlist.userId,
+          type: "wishlist_match",
+          message: `Wishlist alert: "${item.name}" is now available approximately ${distanceKm.toFixed(1)}km away.`,
+        });
+      }
+
+      await wishlistDoc.ref.update({
+        notifiedItemIds: FieldValue.arrayUnion(item.id),
       });
-    }
-
-    await wishlistDoc.ref.update({
-      notifiedItemIds: FieldValue.arrayUnion(item.id),
-    });
-  }
+    })
+  );
 }
