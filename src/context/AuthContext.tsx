@@ -24,6 +24,7 @@ import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase/client";
 import { AppUser } from "@/types";
 import { RegisterInput } from "@/lib/validation/schemas";
+import { isLocalDevelopment } from "@/lib/isLocalDevelopment";
 
 interface AuthContextValue {
   firebaseUser: FirebaseUser | null;
@@ -134,10 +135,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * is actually present, now that where that actually is has been
    * verified rather than assumed to be "everywhere".
    */
-  function isLocalDevelopment(): boolean {
-    if (typeof window === "undefined") return false;
-    return window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-  }
 
   async function handleGoogleUser(user: FirebaseUser): Promise<AppUser | null> {
     const existing = await getDoc(doc(db, "users", user.uid));

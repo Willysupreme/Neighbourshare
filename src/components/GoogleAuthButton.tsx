@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { getPostAuthRedirect } from "@/lib/postAuthRedirect";
+import { isLocalDevelopment } from "@/lib/isLocalDevelopment";
 
 export function GoogleAuthButton() {
   const { loginWithGoogle, completeGoogleRedirect } = useAuth();
@@ -13,6 +14,23 @@ export function GoogleAuthButton() {
   const [checkingRedirect, setCheckingRedirect] = useState(true);
 
   useEffect(() => {
+    // Only relevant to the production redirect flow - local dev
+    // exclusively uses signInWithPopup (see AuthContext.loginWithGoogle),
+    // so checking for a pending redirect result here is meaningless in
+    // that environment. Found via the Safari dev-overlay's full stack
+    // trace (Chrome's minified trace didn't show this clearly) that this
+    // unconditional mount-time call was the actual root cause of the
+    // persistent 'Database is closing/hidden' error: getRedirectResult()
+    // and signInWithPopup() both touch Firebase Auth's IndexedDB
+    // persistence layer, and a user clicking the button while this
+    // mount-time check is still in flight causes a collision on that
+    // same database - reproducible identically across every browser
+    // tested (Chrome, Safari) because it was never a browser quirk.
+    if (isLocalDevelopment()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCheckingRedirect(false);
+      return;
+    }
     // On mount, check whether we just landed back here after a Google
     // redirect. Resolves quickly to null if not (normal page load).
     completeGoogleRedirect()
