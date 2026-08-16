@@ -30,10 +30,22 @@ export function GoogleAuthButton() {
     setError(null);
     setBusy(true);
     try {
-      await loginWithGoogle();
-      // Browser navigates away here - nothing after this line runs.
-    } catch {
-      setError("Something went wrong starting Google sign-in. Please try again.");
+      const profile = await loginWithGoogle();
+      // Non-null only on the popup path (local dev) - the redirect path
+      // (production) navigates away before this line, so profile is
+      // always null there and nothing further happens here.
+      if (profile) {
+        router.push(getPostAuthRedirect(profile));
+      }
+    } catch (err) {
+      const code = (err as { code?: string })?.code;
+      if (code === "auth/popup-blocked") {
+        setError("Your browser blocked the sign-in popup. Please allow popups for this site and try again.");
+      } else if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+        // User deliberately closed it - not an error worth showing.
+      } else {
+        setError("Something went wrong starting Google sign-in. Please try again.");
+      }
       setBusy(false);
     }
   }

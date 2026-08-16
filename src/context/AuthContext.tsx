@@ -11,6 +11,7 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signInWithRedirect,
+  signInWithPopup,
   getRedirectResult,
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
@@ -30,7 +31,7 @@ interface AuthContextValue {
   loading: boolean;
   register: (input: RegisterInput) => Promise<AppUser | null>;
   login: (email: string, password: string) => Promise<AppUser | null>;
-  loginWithGoogle: () => Promise<void>;
+  loginWithGoogle: () => Promise<AppUser | null>;
   completeGoogleRedirect: () => Promise<AppUser | null>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
@@ -110,36 +111,71 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   /**
-   * Google sign-in uses signInWithRedirect rather than signInWithPopup.
-   * Next.js sets a Cross-Origin-Opener-Policy header by default that
-   * blocks the popup flow's window.closed check (a well-known Next.js +
-   * Firebase Auth incompatibility), causing popup sign-in to silently
-   * fail. Redirect sidesteps this - and works better on mobile anyway,
-   * where popups are often blocked outright.
+   * Google sign-in strategy is environment-aware, based on VERIFIED
+   * behaviour (REBUILD_DOCUMENTATION/AUTH_AUDIT.md), not assumption:
+   *
+   * - In production (Vercel), a Cross-Origin-Opener-Policy header is
+   *   present that breaks signInWithPopup's window-closed detection -
+   *   confirmed by curl against the deployed site. signInWithRedirect
+   *   avoids this entirely and is confirmed working live.
+   * - Locally (`next dev` AND a local `next build && next start`), that
+   *   same header is verified ABSENT - it is injected by Vercel's
+   *   platform at deploy time, not by Next.js's own build output, so
+   *   popup is genuinely safe to use locally. Redirect was found to be
+   *   unreliable locally specifically because signInWithRedirect
+   *   depends on browser storage surviving a full-page navigation to
+   *   Google and back, and modern browsers apply materially stricter
+   *   storage-partitioning rules to non-secure (http://) origins - which
+   *   is exactly what `localhost` is in local dev, versus the https://
+   *   origin production always runs on.
+   *
+   * This is not a workaround stacked on the original redirect fix - it
+   * is the same fix (avoid COOP breaking popups) applied only where COOP
+   * is actually present, now that where that actually is has been
+   * verified rather than assumed to be "everywhere".
    */
-  async function loginWithGoogle() {
-    await signInWithRedirect(auth, new GoogleAuthProvider());
-    // Execution stops here - the browser navigates away to Google and
-    // back. See completeGoogleRedirect for what happens on return.
+  function isLocalDevelopment(): boolean {
+    if (typeof window === "undefined") return false;
+    return window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+  }
+
+  async function handleGoogleUser(user: FirebaseUser): Promise<AppUser | null> {
+    const existing = await getDoc(doc(db, "users", user.uid));
+    if (!existing.exists()) {
+      await createMinimalProfile(user.uid, user.displayName ?? "Neighbor", user.email ?? "");
+    }
+    return loadProfile(user.uid);
   }
 
   /**
-   * Call this once on mount of any page that offers Google sign-in. If the
-   * user just came back from a Google redirect, this creates their
-   * profile (if new) and returns it; otherwise resolves to null quickly.
+   * Returns the signed-in profile directly when popup is used (local
+   * dev), so the caller can redirect immediately. In production, this
+   * uses redirect - execution effectively stops as the browser navigates
+   * away, and the eventual result is picked up by completeGoogleRedirect
+   * on the page the user lands back on, not by this function's return
+   * value.
+   */
+  async function loginWithGoogle(): Promise<AppUser | null> {
+    const provider = new GoogleAuthProvider();
+    if (isLocalDevelopment()) {
+      const result = await signInWithPopup(auth, provider);
+      return handleGoogleUser(result.user);
+    }
+    await signInWithRedirect(auth, provider);
+    return null;
+  }
+
+  /**
+   * Call this once on mount of any page that offers Google sign-in. Only
+   * relevant to the redirect path (production) - on the popup path
+   * (local dev), loginWithGoogle's own return value already has the
+   * result, so this simply resolves to null quickly there since
+   * getRedirectResult has nothing to find.
    */
   async function completeGoogleRedirect(): Promise<AppUser | null> {
     const result = await getRedirectResult(auth);
     if (!result) return null;
-    const existing = await getDoc(doc(db, "users", result.user.uid));
-    if (!existing.exists()) {
-      await createMinimalProfile(
-        result.user.uid,
-        result.user.displayName ?? "Neighbor",
-        result.user.email ?? ""
-      );
-    }
-    return loadProfile(result.user.uid);
+    return handleGoogleUser(result.user);
   }
 
   async function logout() {
@@ -148,7 +184,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function resetPassword(email: string) {
-    await sendPasswordResetEmail(auth, email);
+    // ActionCodeSettings.url is captured from window.location.origin at
+    // call time, not hardcoded - this is genuinely correct in both
+    // environments without an environment-specific branch, since it
+    // simply reflects wherever the request actually came from.
+    await sendPasswordResetEmail(auth, email, {
+      url: `${window.location.origin}/login`,
+    });
   }
 
   async function refreshProfile() {
