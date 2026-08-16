@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { getPostAuthRedirect } from "@/lib/postAuthRedirect";
@@ -12,29 +12,7 @@ export function GoogleAuthButton() {
   const [busy, setBusy] = useState(false);
   const [checkingRedirect, setCheckingRedirect] = useState(true);
 
-  const redirectCheckStarted = useRef(false);
-
   useEffect(() => {
-    // Guard against React Strict Mode's dev-only synthetic double-invoke,
-    // same root cause as the AuthContext listener fix - getRedirectResult
-    // shares Firebase Auth's IndexedDB-backed AuthEventManager with
-    // signInWithPopup, so calling it twice in rapid succession (Strict
-    // Mode's mount -> cleanup -> remount) was found, via live retesting,
-    // to still leave that shared state unstable even after the
-    // AuthContext listener fix alone - this second guard was required in
-    // addition to it, not instead of it.
-    //
-    // A useRef (not a module-level flag like AuthContext's) is correct
-    // here specifically: React preserves refs across Strict Mode's
-    // synthetic remount of the SAME logical mount, so this still
-    // suppresses the synthetic duplicate - but unlike a permanent
-    // module-level flag, a genuinely new mount (e.g. navigating away from
-    // /login and back) gets a fresh ref and will correctly check for a
-    // real pending redirect result again, which matters for the
-    // production redirect flow.
-    if (redirectCheckStarted.current) return;
-    redirectCheckStarted.current = true;
-
     // On mount, check whether we just landed back here after a Google
     // redirect. Resolves quickly to null if not (normal page load).
     completeGoogleRedirect()

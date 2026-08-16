@@ -40,12 +40,6 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-// Module-level (not component state) so it survives React Strict Mode's
-// dev-only synthetic unmount/remount cycle within the same module
-// instance - see the detailed comment at its use site in AuthProvider's
-// effect below.
-let authListenerUnsubscribe: (() => void) | null = null;
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [profile, setProfile] = useState<AppUser | null>(null);
@@ -79,56 +73,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    // React Strict Mode (Next.js's dev-mode default, confirmed by no
-    // override in next.config.ts) deliberately mounts -> cleans up ->
-    // remounts every effect once, specifically to surface side-effect
-    // bugs. For most effects that's harmless, but this particular
-    // listener wraps Firebase Auth's IndexedDB-backed persistence layer,
-    // and tearing it down and immediately recreating it right as a
-    // signInWithPopup flow is concurrently trying to read/write that
-    // same IndexedDB instance produces exactly the "Database is closing/
-    // hidden" error found via live testing - a real, documented class of
-    // interaction between React 18 Strict Mode and Firebase Auth SDK
-    // persistence, not this app's own logic bug.
-    //
-    // AuthProvider wraps the entire app at the root layout and is never
-    // meaningfully remounted during real navigation - the only reason
-    // this effect would ever re-run is Strict Mode's synthetic dev-only
-    // cycle. The fix keeps the real unsubscribe function in MODULE scope
-    // (survives the synthetic unmount/remount within the same module
-    // instance, unlike component state) and deliberately does NOT call
-    // it on the synthetic cleanup - only reusing the already-active
-    // listener on the second invoke. This means exactly one real
-    // Firebase listener exists for the page's lifetime, never torn down
-    // and recreated - not disabling Strict Mode for the rest of the app,
-    // just making this one root-level, app-lifetime listener resilient
-    // to its synthetic double-invoke.
-    if (!authListenerUnsubscribe) {
-      authListenerUnsubscribe = onAuthStateChanged(auth, async (user) => {
-        setFirebaseUser(user);
-        if (user) {
-          const loaded = await loadProfile(user.uid);
-          if (!loaded) {
-            // Auth account exists but no Firestore profile - most likely
-            // an interrupted signup (e.g. a Google redirect that
-            // authenticated successfully but didn't finish writing the
-            // profile doc, or a network blip mid-registration). Self-heal
-            // rather than leaving the person stuck signed-in with nothing
-            // to show for it.
-            await createMinimalProfile(
-              user.uid,
-              user.displayName ?? "Neighbor",
-              user.email ?? ""
-            );
-            await loadProfile(user.uid);
-          }
-        } else {
-          setProfile(null);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setFirebaseUser(user);
+      if (user) {
+        const loaded = await loadProfile(user.uid);
+        if (!loaded) {
+          // Auth account exists but no Firestore profile - most likely an
+          // interrupted signup (e.g. a Google redirect that authenticated
+          // successfully but didn't finish writing the profile doc, or a
+          // network blip mid-registration). Self-heal rather than leaving
+          // the person stuck signed-in with nothing to show for it.
+          await createMinimalProfile(
+            user.uid,
+            user.displayName ?? "Neighbor",
+            user.email ?? ""
+          );
+          await loadProfile(user.uid);
         }
-        setLoading(false);
-      });
-    }
-    // Deliberately no cleanup here - see comment above.
+      } else {
+        setProfile(null);
+      }
+      setLoading(false);
+    });
+    return unsubscribe;
   }, []);
 
   async function register(input: RegisterInput) {
