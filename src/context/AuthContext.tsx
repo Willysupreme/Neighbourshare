@@ -159,6 +159,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const provider = new GoogleAuthProvider();
     if (isLocalDevelopment()) {
       const result = await signInWithPopup(auth, provider);
+      // Explicitly sync context state here rather than waiting for
+      // onAuthStateChanged's independent async listener to catch up.
+      // Without this, a real race condition occurs: the caller redirects
+      // to a protected page (e.g. /dashboard) immediately after this
+      // resolves, but if onAuthStateChanged hasn't fired yet by the time
+      // RequireAuth mounts there, it sees firebaseUser as still null and
+      // silently redirects back to /login - no error, just an empty
+      // login page, exactly matching what this was found to actually do
+      // when tested live.
+      setFirebaseUser(result.user);
       return handleGoogleUser(result.user);
     }
     await signInWithRedirect(auth, provider);
