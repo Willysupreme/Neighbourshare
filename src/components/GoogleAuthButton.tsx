@@ -19,7 +19,12 @@ export function GoogleAuthButton() {
       .then((profile) => {
         if (profile) router.push(getPostAuthRedirect(profile));
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("[GoogleAuthButton] completeGoogleRedirect failed:", {
+          code: (err as { code?: string })?.code,
+          message: err instanceof Error ? err.message : String(err),
+          name: err instanceof Error ? err.name : undefined,
+        });
         setError("Something went wrong signing in with Google. Please try again.");
       })
       .finally(() => setCheckingRedirect(false));
@@ -39,12 +44,33 @@ export function GoogleAuthButton() {
       }
     } catch (err) {
       const code = (err as { code?: string })?.code;
-      if (code === "auth/popup-blocked") {
+      const stage = (err as { stage?: string })?.stage;
+      console.error("[GoogleAuthButton] loginWithGoogle failed:", {
+        stage: stage ?? "auth",
+        code,
+        message: err instanceof Error ? err.message : String(err),
+        name: err instanceof Error ? err.name : undefined,
+        stack: err instanceof Error ? err.stack : undefined,
+      });
+      if (stage === "profile") {
+        // Google authentication itself succeeded - this is specifically
+        // a Firestore profile creation/loading failure, a genuinely
+        // different problem than the sign-in step, and reported as such
+        // rather than as "Google sign-in failed" (which would be
+        // inaccurate - sign-in didn't fail).
+        setError("You're signed in with Google, but we couldn't set up your account profile. Please try again, or contact an administrator if this keeps happening.");
+      } else if (code === "auth/popup-blocked") {
         setError("Your browser blocked the sign-in popup. Please allow popups for this site and try again.");
       } else if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
         // User deliberately closed it - not an error worth showing.
+      } else if (code === "auth/account-exists-with-different-credential") {
+        setError("An account already exists with this email using a different sign-in method.");
+      } else if (code === "auth/network-request-failed") {
+        setError("A network error interrupted sign-in. Please check your connection and try again.");
+      } else if (code === "auth/unauthorized-domain") {
+        setError("This site isn't authorised for Google sign-in yet. Please contact an administrator.");
       } else {
-        setError("Something went wrong starting Google sign-in. Please try again.");
+        setError(`Something went wrong starting Google sign-in${code ? ` (${code})` : ""}. Please try again.`);
       }
       setBusy(false);
     }

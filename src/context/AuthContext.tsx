@@ -160,16 +160,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (isLocalDevelopment()) {
       const result = await signInWithPopup(auth, provider);
       // Explicitly sync context state here rather than waiting for
-      // onAuthStateChanged's independent async listener to catch up.
-      // Without this, a real race condition occurs: the caller redirects
-      // to a protected page (e.g. /dashboard) immediately after this
-      // resolves, but if onAuthStateChanged hasn't fired yet by the time
-      // RequireAuth mounts there, it sees firebaseUser as still null and
-      // silently redirects back to /login - no error, just an empty
-      // login page, exactly matching what this was found to actually do
-      // when tested live.
+      // onAuthStateChanged's independent async listener to catch up -
+      // without this, redirecting to a protected page immediately after
+      // this resolves can race ahead of the listener, causing RequireAuth
+      // to see firebaseUser as still null and silently bounce back to
+      // /login (found via live testing, not assumed).
       setFirebaseUser(result.user);
-      return handleGoogleUser(result.user);
+      // Auth itself has now genuinely succeeded - Firebase has issued a
+      // real session for this user. Anything that goes wrong from here
+      // (Firestore profile creation/loading) is a DIFFERENT failure mode
+      // than the auth step, and is tagged as such so the UI can report
+      // it accurately rather than as "Google sign-in failed" (per the
+      // explicit requirement to separate authentication failure from
+      // profile failure, not collapse them into one message).
+      setFirebaseUser(result.user);
+      try {
+        return await handleGoogleUser(result.user);
+      } catch (profileErr) {
+        const tagged = profileErr instanceof Error ? profileErr : new Error(String(profileErr));
+        (tagged as Error & { stage?: string }).stage = "profile";
+        throw tagged;
+      }
     }
     await signInWithRedirect(auth, provider);
     return null;
