@@ -62,12 +62,18 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isSelf(uid);
       // Users may edit their own profile but may NEVER self-assign role,
-      // verificationStatus, trustScore, or accountStatus - those are
-      // owner-restricted / system-computed fields.
+      // verificationStatus, trustScore, accountStatus, or
+      // activeRestrictions - those are owner-restricted / system-computed
+      // fields. activeRestrictions specifically was added in Rebuild
+      // Phase 18's security review after finding it had been left
+      // unprotected in Phase 16 - a self-write of activeRestrictions: []
+      // would have silently bypassed every restriction, including
+      // cannot_message, which is enforced entirely by reading this field.
       allow update: if isSelf(uid) &&
         request.resource.data.role == resource.data.role &&
         request.resource.data.accountStatus == resource.data.accountStatus &&
-        request.resource.data.trustScore == resource.data.trustScore
+        request.resource.data.trustScore == resource.data.trustScore &&
+        request.resource.data.get('activeRestrictions', []) == resource.data.get('activeRestrictions', [])
         || isAdmin();
       allow delete: if isAdmin();
     }
