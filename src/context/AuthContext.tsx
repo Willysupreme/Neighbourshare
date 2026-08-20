@@ -16,6 +16,8 @@ import {
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
   sendPasswordResetEmail,
+  sendEmailVerification,
+  reload,
   updateProfile,
   User as FirebaseUser,
 } from "firebase/auth";
@@ -34,6 +36,8 @@ interface AuthContextValue {
   linkGoogleAccount: () => Promise<void>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  resendVerificationEmail: () => Promise<void>;
+  refreshEmailVerified: () => Promise<boolean>;
   refreshProfile: () => Promise<void>;
 }
 
@@ -110,7 +114,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const credential = await createUserWithEmailAndPassword(auth, input.email, input.password);
     await updateProfile(credential.user, { displayName: input.name });
     await createMinimalProfile(credential.user.uid, input.name, input.email);
+    // Best-effort - a failure here shouldn't block registration itself,
+    // since the person can always request another verification email
+    // later from Settings.
+    try {
+      await sendEmailVerification(credential.user, {
+        url: `${window.location.origin}/dashboard`,
+      });
+    } catch (err) {
+      console.error("[AuthContext] sendEmailVerification on registration failed:", err);
+    }
     return loadProfile(credential.user.uid);
+  }
+
+  async function resendVerificationEmail(): Promise<void> {
+    if (!auth.currentUser) {
+      throw new Error("You must be signed in to request a verification email.");
+    }
+    await sendEmailVerification(auth.currentUser, {
+      url: `${window.location.origin}/dashboard`,
+    });
+  }
+
+  /**
+   * Firebase's emailVerified flag on the User object is a snapshot from
+   * when it was last fetched - it does NOT live-update just because the
+   * person clicked the link in their email in another tab. Call this
+   * (e.g. after the person says "I've verified it") to force a reload
+   * from Firebase and pick up the current status.
+   */
+  async function refreshEmailVerified(): Promise<boolean> {
+    if (!auth.currentUser) return false;
+    await reload(auth.currentUser);
+    setFirebaseUser(auth.currentUser);
+    return auth.currentUser.emailVerified;
   }
 
   async function login(email: string, password: string) {
@@ -239,6 +276,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         linkGoogleAccount,
         logout,
         resetPassword,
+        resendVerificationEmail,
+        refreshEmailVerified,
         refreshProfile,
       }}
     >

@@ -8,6 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 import { RequireAuth } from "@/context/RequireAuth";
 import { BookingActions } from "@/components/BookingActions";
 import { ClaimTag } from "@/components/ClaimTag";
+import { EmailVerificationBanner } from "@/components/EmailVerificationBanner";
 import { getTimeBasedGreeting, firstNameOf } from "@/lib/greeting";
 import { Booking, Item } from "@/types";
 
@@ -47,6 +48,7 @@ function DashboardContent() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
+      <EmailVerificationBanner />
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           {profile.photoUrl && (

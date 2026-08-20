@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { registerSchema } from "@/lib/validation/schemas";
-import { GoogleAuthButton } from "@/components/GoogleAuthButton";
 import { getPostAuthRedirect } from "@/lib/postAuthRedirect";
 
 export default function RegisterPage() {
@@ -61,17 +60,7 @@ export default function RegisterPage() {
         Join your neighborhood to borrow and lend tools and equipment.
       </p>
 
-      <div className="mt-6">
-        <GoogleAuthButton />
-      </div>
-
-      <div className="my-6 flex items-center gap-3 text-xs text-neutral-400">
-        <div className="h-px flex-1 bg-neutral-200" />
-        or sign up with email
-        <div className="h-px flex-1 bg-neutral-200" />
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
         <Field label="Full name">
           <input
             className="input"

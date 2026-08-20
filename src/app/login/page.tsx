@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { loginSchema } from "@/lib/validation/schemas";
-import { GoogleAuthButton } from "@/components/GoogleAuthButton";
 import { getPostAuthRedirect } from "@/lib/postAuthRedirect";
 
 export default function LoginPage() {
@@ -82,17 +81,7 @@ export default function LoginPage() {
       <h1 className="display-heading text-3xl">Log in</h1>
       <p className="mt-1 text-sm text-neutral-600">Welcome back to NeighborShare.</p>
 
-      <div className="mt-6">
-        <GoogleAuthButton />
-      </div>
-
-      <div className="my-6 flex items-center gap-3 text-xs text-neutral-400">
-        <div className="h-px flex-1 bg-neutral-200" />
-        or log in with email
-        <div className="h-px flex-1 bg-neutral-200" />
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-neutral-700">Email</span>
           <input
