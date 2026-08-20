@@ -53,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return loaded;
   }
 
-  async function createMinimalProfile(uid: string, name: string, email: string) {
+  async function createMinimalProfile(uid: string, name: string, email: string, photoUrl?: string | null) {
     const newUser: Omit<AppUser, "createdAt" | "updatedAt"> & {
       createdAt: unknown;
       updatedAt: unknown;
@@ -70,6 +70,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
+    // Only set when Google actually provided one - avoids writing an
+    // empty/undefined photoUrl for email/password signups, which have no
+    // photo at all.
+    if (photoUrl) {
+      newUser.photoUrl = photoUrl;
+    }
     await setDoc(doc(db, "users", uid), newUser);
   }
 
@@ -87,7 +93,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await createMinimalProfile(
             user.uid,
             user.displayName ?? "Neighbor",
-            user.email ?? ""
+            user.email ?? "",
+            user.photoURL
           );
           await loadProfile(user.uid);
         }
@@ -139,7 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function handleGoogleUser(user: FirebaseUser): Promise<AppUser | null> {
     const existing = await getDoc(doc(db, "users", user.uid));
     if (!existing.exists()) {
-      await createMinimalProfile(user.uid, user.displayName ?? "Neighbor", user.email ?? "");
+      await createMinimalProfile(user.uid, user.displayName ?? "Neighbor", user.email ?? "", user.photoURL);
     }
     return loadProfile(user.uid);
   }
