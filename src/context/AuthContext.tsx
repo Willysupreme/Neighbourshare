@@ -47,6 +47,8 @@ class PopupTimeoutError extends Error {
   }
 }
 
+let googleSignInInFlight = false;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [profile, setProfile] = useState<AppUser | null>(null);
@@ -162,6 +164,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function loginWithGoogle(): Promise<AppUser | null> {
+    // Reentrancy guard, independent of GoogleAuthButton's own disabled-
+    // while-busy UI state - protects any caller of this function, not
+    // just clicks on one specific button, from triggering a second
+    // concurrent signInWithPopup while one is already in flight. This
+    // matters specifically here: two concurrent Firebase Auth operations
+    // contending for the same IndexedDB persistence layer is exactly the
+    // class of problem this whole investigation has been about.
+    if (googleSignInInFlight) {
+      throw Object.assign(new Error("A Google sign-in attempt is already in progress."), {
+        code: "auth/cancelled-popup-request",
+      });
+    }
+    googleSignInInFlight = true;
+
     const provider = new GoogleAuthProvider();
 
     try {
@@ -210,6 +226,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sessionStorage.setItem(GOOGLE_REDIRECT_PENDING_KEY, "1");
       await signInWithRedirect(auth, provider);
       return null;
+    } finally {
+      googleSignInInFlight = false;
     }
   }
 
