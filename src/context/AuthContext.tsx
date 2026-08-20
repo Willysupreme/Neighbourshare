@@ -30,7 +30,7 @@ import {
   MultiFactorResolver,
   User as FirebaseUser,
 } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase/client";
 import { AppUser } from "@/types";
 import { RegisterInput } from "@/lib/validation/schemas";
@@ -61,6 +61,8 @@ interface AuthContextValue {
     verificationCode: string
   ) => Promise<AppUser | null>;
   refreshProfile: () => Promise<void>;
+  updateDisplayName: (name: string) => Promise<void>;
+  updateUserPhoto: (photoUrl: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -410,6 +412,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (firebaseUser) await loadProfile(firebaseUser.uid);
   }
 
+  /**
+   * Updates both Firebase Auth's own displayName and the Firestore
+   * profile's name field - kept in sync deliberately, since some paths
+   * (the self-healing branch in the onAuthStateChanged listener, for a
+   * profile that's missing entirely) read user.displayName from Firebase
+   * Auth directly, not from Firestore.
+   */
+  async function updateDisplayName(name: string) {
+    if (!auth.currentUser) {
+      throw new Error("You must be signed in to update your name.");
+    }
+    const trimmed = name.trim();
+    if (!trimmed) {
+      throw new Error("Name cannot be empty.");
+    }
+    await updateProfile(auth.currentUser, { displayName: trimmed });
+    await updateDoc(doc(db, "users", auth.currentUser.uid), {
+      name: trimmed,
+      updatedAt: serverTimestamp(),
+    });
+    setFirebaseUser(auth.currentUser);
+    await refreshProfile();
+  }
+
+  async function updateUserPhoto(photoUrl: string) {
+    if (!auth.currentUser) {
+      throw new Error("You must be signed in to update your photo.");
+    }
+    await updateProfile(auth.currentUser, { photoURL: photoUrl });
+    await updateDoc(doc(db, "users", auth.currentUser.uid), {
+      photoUrl,
+      updatedAt: serverTimestamp(),
+    });
+    setFirebaseUser(auth.currentUser);
+    await refreshProfile();
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -434,6 +473,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         beginPhoneMfaChallenge,
         completePhoneMfaSignIn,
         refreshProfile,
+        updateDisplayName,
+        updateUserPhoto,
       }}
     >
       {children}

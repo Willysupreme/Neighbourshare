@@ -1,22 +1,72 @@
 "use client";
 
-import { useState } from "react";
+import { useState, ChangeEvent } from "react";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { useAuth } from "@/context/AuthContext";
 import { RequireAuth } from "@/context/RequireAuth";
 import { TotpSetup } from "@/components/TotpSetup";
 import { PhoneMfaSetup } from "@/components/PhoneMfaSetup";
+import { uploadImageToCloudinary, validateImageFile, ImageUploadError } from "@/lib/cloudinary";
 
 function SettingsContent() {
-  const { profile, firebaseUser, linkGoogleAccount, refreshProfile } = useAuth();
+  const { profile, firebaseUser, linkGoogleAccount, refreshProfile, updateDisplayName, updateUserPhoto } = useAuth();
   const [saving, setSaving] = useState(false);
   const [linking, setLinking] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
+  const [nameInput, setNameInput] = useState(profile?.name ?? "");
+  const [savingName, setSavingName] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [nameSaved, setNameSaved] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   if (!profile) return null;
 
   const googleLinked = firebaseUser?.providerData.some((p) => p.providerId === "google.com") ?? false;
+
+  async function handleSaveName() {
+    setNameError(null);
+    setNameSaved(false);
+    const trimmed = nameInput.trim();
+    if (!trimmed) {
+      setNameError("Name can't be empty.");
+      return;
+    }
+    setSavingName(true);
+    try {
+      await updateDisplayName(trimmed);
+      setNameSaved(true);
+    } catch (err) {
+      console.error("[Settings] updateDisplayName failed:", err);
+      setNameError("Couldn't save your name. Please try again.");
+    } finally {
+      setSavingName(false);
+    }
+  }
+
+  async function handlePhotoChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file later
+    if (!file) return;
+    setPhotoError(null);
+    try {
+      validateImageFile(file);
+    } catch (err) {
+      setPhotoError(err instanceof ImageUploadError ? err.message : "That file can't be used.");
+      return;
+    }
+    setUploadingPhoto(true);
+    try {
+      const url = await uploadImageToCloudinary(file);
+      await updateUserPhoto(url);
+    } catch (err) {
+      console.error("[Settings] photo upload/update failed:", err);
+      setPhotoError("Couldn't update your photo. Please try again.");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
 
   async function handleLinkGoogle() {
     setLinkError(null);
@@ -73,6 +123,61 @@ function SettingsContent() {
   return (
     <div className="mx-auto max-w-lg px-4 py-10">
       <h1 className="display-heading text-3xl">Settings</h1>
+
+      <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-neutral-500">
+        Profile
+      </h2>
+      <div className="card mt-3">
+        <div className="flex items-center gap-4">
+          {profile.photoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- externally-hosted (Cloudinary/Google) URL, not a local/optimizable asset
+            <img
+              src={profile.photoUrl}
+              alt=""
+              className="h-16 w-16 rounded-full border border-line object-cover"
+            />
+          ) : (
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-neutral-100 text-xl text-neutral-400">
+              {profile.name.charAt(0).toUpperCase()}
+            </div>
+          )}
+          <div>
+            <label className="btn-secondary cursor-pointer text-xs">
+              {uploadingPhoto ? "Uploading..." : "Change photo"}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                onChange={handlePhotoChange}
+                disabled={uploadingPhoto}
+                className="hidden"
+              />
+            </label>
+            {photoError && <p className="mt-1 text-xs text-clay">{photoError}</p>}
+          </div>
+        </div>
+
+        <label className="mt-4 block text-xs font-medium">Name</label>
+        <div className="mt-1 flex gap-2">
+          <input
+            className="input"
+            value={nameInput}
+            onChange={(e) => {
+              setNameInput(e.target.value);
+              setNameSaved(false);
+            }}
+            maxLength={80}
+          />
+          <button
+            onClick={handleSaveName}
+            disabled={savingName || nameInput.trim() === profile.name}
+            className="btn-secondary shrink-0 text-xs"
+          >
+            {savingName ? "Saving..." : "Save"}
+          </button>
+        </div>
+        {nameSaved && <p className="mt-1 text-xs text-leaf">Name updated.</p>}
+        {nameError && <p className="mt-1 text-xs text-clay">{nameError}</p>}
+      </div>
 
       <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-neutral-500">
         Messaging preferences
