@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { getPostAuthRedirect } from "@/lib/postAuthRedirect";
-import { isLocalDevelopment } from "@/lib/isLocalDevelopment";
 
 export function GoogleAuthButton() {
   const { loginWithGoogle, completeGoogleRedirect } = useAuth();
@@ -14,25 +13,15 @@ export function GoogleAuthButton() {
   const [checkingRedirect, setCheckingRedirect] = useState(true);
 
   useEffect(() => {
-    // Only relevant to the production redirect flow - local dev
-    // exclusively uses signInWithPopup (see AuthContext.loginWithGoogle),
-    // so checking for a pending redirect result here is meaningless in
-    // that environment. Found via the Safari dev-overlay's full stack
-    // trace (Chrome's minified trace didn't show this clearly) that this
-    // unconditional mount-time call was the actual root cause of the
-    // persistent 'Database is closing/hidden' error: getRedirectResult()
-    // and signInWithPopup() both touch Firebase Auth's IndexedDB
-    // persistence layer, and a user clicking the button while this
-    // mount-time check is still in flight causes a collision on that
-    // same database - reproducible identically across every browser
-    // tested (Chrome, Safari) because it was never a browser quirk.
-    if (isLocalDevelopment()) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setCheckingRedirect(false);
-      return;
-    }
-    // On mount, check whether we just landed back here after a Google
-    // redirect. Resolves quickly to null if not (normal page load).
+    // Safe to call unconditionally on every mount now: completeGoogleRedirect
+    // itself checks a sessionStorage flag before ever calling
+    // getRedirectResult, and that flag is only ever set by loginWithGoogle
+    // when it genuinely fell back to signInWithRedirect (popup blocked,
+    // network failure, or a silent hang past the 15s timeout). On the
+    // normal, common path (popup just works), the flag is absent and this
+    // resolves to null immediately without touching getRedirectResult at
+    // all - preserving the confirmed fix for the "Database is closing/
+    // hidden" race between getRedirectResult and signInWithPopup.
     completeGoogleRedirect()
       .then((profile) => {
         if (profile) router.push(getPostAuthRedirect(profile));
@@ -54,9 +43,11 @@ export function GoogleAuthButton() {
     setBusy(true);
     try {
       const profile = await loginWithGoogle();
-      // Non-null only on the popup path (local dev) - the redirect path
-      // (production) navigates away before this line, so profile is
-      // always null there and nothing further happens here.
+      // Non-null only if popup succeeded or a redirect fallback wasn't
+      // needed. If loginWithGoogle fell back to signInWithRedirect, the
+      // browser navigates away before this line ever runs - profile is
+      // null and nothing further happens here; completeGoogleRedirect
+      // picks up the result on the page the user lands back on.
       if (profile) {
         router.push(getPostAuthRedirect(profile));
       }

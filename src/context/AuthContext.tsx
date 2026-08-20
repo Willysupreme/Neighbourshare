@@ -24,7 +24,6 @@ import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase/client";
 import { AppUser } from "@/types";
 import { RegisterInput } from "@/lib/validation/schemas";
-import { isLocalDevelopment } from "@/lib/isLocalDevelopment";
 
 interface AuthContextValue {
   firebaseUser: FirebaseUser | null;
@@ -40,6 +39,13 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+class PopupTimeoutError extends Error {
+  constructor() {
+    super("Google sign-in popup did not complete within the expected time.");
+    this.name = "PopupTimeoutError";
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
@@ -119,29 +125,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   /**
-   * Google sign-in strategy is environment-aware, based on VERIFIED
-   * behaviour (REBUILD_DOCUMENTATION/AUTH_AUDIT.md), not assumption:
+   * Google sign-in now tries signInWithPopup everywhere (previously
+   * environment-aware: popup locally, redirect in production, because
+   * Vercel's platform-level COOP header broke popup's window.closed
+   * detection there). An explicit app-level COOP header
+   * (same-origin-allow-popups, see next.config.ts) has since been added,
+   * which should address that - but this cannot be verified from a
+   * sandbox against Vercel's actual live behaviour, so popup is not
+   * trusted unconditionally in production: it falls back to
+   * signInWithRedirect (the previously-confirmed-working production
+   * path) if popup fails.
    *
-   * - In production (Vercel), a Cross-Origin-Opener-Policy header is
-   *   present that breaks signInWithPopup's window-closed detection -
-   *   confirmed by curl against the deployed site. signInWithRedirect
-   *   avoids this entirely and is confirmed working live.
-   * - Locally (`next dev` AND a local `next build && next start`), that
-   *   same header is verified ABSENT - it is injected by Vercel's
-   *   platform at deploy time, not by Next.js's own build output, so
-   *   popup is genuinely safe to use locally. Redirect was found to be
-   *   unreliable locally specifically because signInWithRedirect
-   *   depends on browser storage surviving a full-page navigation to
-   *   Google and back, and modern browsers apply materially stricter
-   *   storage-partitioning rules to non-secure (http://) origins - which
-   *   is exactly what `localhost` is in local dev, versus the https://
-   *   origin production always runs on.
+   * Two distinct failure modes are handled, not just one:
+   * 1. signInWithPopup rejects with a clear error (auth/popup-blocked,
+   *    auth/network-request-failed) - caught normally.
+   * 2. A COOP-broken popup does NOT always throw - it can leave
+   *    signInWithPopup's promise simply never resolving, because the
+   *    underlying window.closed check it depends on never fires. A plain
+   *    try/catch cannot detect this. Raced against a generous timeout
+   *    (15s) specifically to catch this silent-hang case, not used as a
+   *    general-purpose "assume it's done" synchronisation hack.
    *
-   * This is not a workaround stacked on the original redirect fix - it
-   * is the same fix (avoid COOP breaking popups) applied only where COOP
-   * is actually present, now that where that actually is has been
-   * verified rather than assumed to be "everywhere".
+   * auth/popup-closed-by-user and auth/cancelled-popup-request are
+   * deliberate user actions, not technical failures - these do NOT fall
+   * back to redirect (that would unexpectedly full-page-navigate someone
+   * who just closed a popup on purpose).
    */
+  const GOOGLE_REDIRECT_PENDING_KEY = "neighborshare_google_redirect_pending";
 
   async function handleGoogleUser(user: FirebaseUser): Promise<AppUser | null> {
     const existing = await getDoc(doc(db, "users", user.uid));
@@ -151,18 +161,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return loadProfile(user.uid);
   }
 
-  /**
-   * Returns the signed-in profile directly when popup is used (local
-   * dev), so the caller can redirect immediately. In production, this
-   * uses redirect - execution effectively stops as the browser navigates
-   * away, and the eventual result is picked up by completeGoogleRedirect
-   * on the page the user lands back on, not by this function's return
-   * value.
-   */
   async function loginWithGoogle(): Promise<AppUser | null> {
     const provider = new GoogleAuthProvider();
-    if (isLocalDevelopment()) {
-      const result = await signInWithPopup(auth, provider);
+
+    try {
+      const result = await Promise.race([
+        signInWithPopup(auth, provider),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new PopupTimeoutError()), 15000)
+        ),
+      ]);
       // Explicitly sync context state here rather than waiting for
       // onAuthStateChanged's independent async listener to catch up -
       // without this, redirecting to a protected page immediately after
@@ -170,34 +178,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // to see firebaseUser as still null and silently bounce back to
       // /login (found via live testing, not assumed).
       setFirebaseUser(result.user);
-      // Auth itself has now genuinely succeeded - Firebase has issued a
-      // real session for this user. Anything that goes wrong from here
-      // (Firestore profile creation/loading) is a DIFFERENT failure mode
-      // than the auth step, and is tagged as such so the UI can report
-      // it accurately rather than as "Google sign-in failed" (per the
-      // explicit requirement to separate authentication failure from
-      // profile failure, not collapse them into one message).
-      setFirebaseUser(result.user);
       try {
         return await handleGoogleUser(result.user);
       } catch (profileErr) {
+        // Auth itself genuinely succeeded here - Firebase issued a real
+        // session. A failure past this point (Firestore profile creation/
+        // loading) is a DIFFERENT failure mode than sign-in itself, and
+        // is tagged as such so the UI reports it accurately rather than
+        // as "Google sign-in failed" (sign-in didn't fail).
         const tagged = profileErr instanceof Error ? profileErr : new Error(String(profileErr));
         (tagged as Error & { stage?: string }).stage = "profile";
         throw tagged;
       }
+    } catch (err) {
+      const code = (err as { code?: string })?.code;
+      const isTimeout = err instanceof PopupTimeoutError;
+      const shouldFallBackToRedirect =
+        isTimeout || code === "auth/popup-blocked" || code === "auth/network-request-failed";
+
+      if (!shouldFallBackToRedirect) {
+        throw err;
+      }
+
+      // Signal to completeGoogleRedirect (checked on the next page load,
+      // after Google redirects back) that a redirect was genuinely
+      // initiated here - without this flag, an unconditional
+      // getRedirectResult() call on every mount would race with
+      // signInWithPopup's own IndexedDB usage on the normal, common
+      // popup path, reintroducing the exact "Database is closing/hidden"
+      // bug this flag-based approach is specifically designed to avoid.
+      sessionStorage.setItem(GOOGLE_REDIRECT_PENDING_KEY, "1");
+      await signInWithRedirect(auth, provider);
+      return null;
     }
-    await signInWithRedirect(auth, provider);
-    return null;
   }
 
   /**
-   * Call this once on mount of any page that offers Google sign-in. Only
-   * relevant to the redirect path (production) - on the popup path
-   * (local dev), loginWithGoogle's own return value already has the
-   * result, so this simply resolves to null quickly there since
-   * getRedirectResult has nothing to find.
+   * Call this once on mount of any page that offers Google sign-in.
+   * Checks GOOGLE_REDIRECT_PENDING_KEY BEFORE calling getRedirectResult
+   * at all - on the normal, common path (popup succeeded, no fallback
+   * was ever triggered), this flag is absent and getRedirectResult is
+   * skipped entirely. This is what preserves the confirmed fix for the
+   * "Database is closing/hidden" bug: an unconditional getRedirectResult
+   * call on every mount was found (via live testing) to race with
+   * signInWithPopup's own IndexedDB usage. Only when the flag is present
+   * - meaning loginWithGoogle genuinely fell back to signInWithRedirect
+   * moments before this page loaded - is getRedirectResult called, which
+   * is safe at that point since no popup is concurrently active.
    */
   async function completeGoogleRedirect(): Promise<AppUser | null> {
+    if (typeof window === "undefined" || !sessionStorage.getItem(GOOGLE_REDIRECT_PENDING_KEY)) {
+      return null;
+    }
+    sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING_KEY);
     const result = await getRedirectResult(auth);
     if (!result) return null;
     return handleGoogleUser(result.user);
