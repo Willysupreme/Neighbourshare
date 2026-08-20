@@ -6,9 +6,10 @@ import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { loginSchema } from "@/lib/validation/schemas";
 import { getPostAuthRedirect } from "@/lib/postAuthRedirect";
+import type { MultiFactorError, MultiFactorResolver } from "firebase/auth";
 
 export default function LoginPage() {
-  const { login, resetPassword, firebaseUser, profile, loading } = useAuth();
+  const { login, resetPassword, firebaseUser, profile, loading, getTotpResolver, completeTotpSignIn } = useAuth();
   const router = useRouter();
 
   const [email, setEmail] = useState("");
@@ -18,6 +19,9 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [resetMode, setResetMode] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+  const [totpResolver, setTotpResolver] = useState<MultiFactorResolver | null>(null);
+  const [totpCode, setTotpCode] = useState("");
+  const [totpError, setTotpError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && firebaseUser) {
@@ -68,9 +72,38 @@ export default function LoginPage() {
       const profile = await login(parsed.data.email, parsed.data.password);
       router.push(getPostAuthRedirect(profile));
     } catch (err) {
+      const code = (err as { code?: string })?.code;
+      if (code === "auth/multi-factor-auth-required") {
+        // Password was correct - a second factor (authenticator app) is
+        // required to finish signing in. Not an error; switch to the
+        // TOTP challenge step instead of showing a failure message.
+        setTotpResolver(getTotpResolver(err as MultiFactorError));
+        setSubmitting(false);
+        return;
+      }
       const { message, isCredentialIssue } = mapFirebaseError(err);
       setError(message);
       setIsCredentialError(isCredentialIssue);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleTotpSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!totpResolver) return;
+    setTotpError(null);
+    setSubmitting(true);
+    try {
+      const profile = await completeTotpSignIn(totpResolver, totpCode.trim());
+      router.push(getPostAuthRedirect(profile));
+    } catch (err) {
+      const code = (err as { code?: string })?.code;
+      if (code === "auth/invalid-verification-code") {
+        setTotpError("That code doesn't look right. Check your authenticator app and try again.");
+      } else {
+        setTotpError("Something went wrong. Please try again.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -81,7 +114,46 @@ export default function LoginPage() {
       <h1 className="display-heading text-3xl">Log in</h1>
       <p className="mt-1 text-sm text-neutral-600">Welcome back to NeighborShare.</p>
 
-      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+      {totpResolver ? (
+        <form onSubmit={handleTotpSubmit} className="mt-6 space-y-4">
+          <p className="text-sm text-neutral-600">
+            Enter the 6-digit code from your authenticator app.
+          </p>
+          <input
+            className="input"
+            value={totpCode}
+            onChange={(e) => setTotpCode(e.target.value)}
+            maxLength={6}
+            inputMode="numeric"
+            placeholder="123456"
+            autoFocus
+          />
+          {totpError && (
+            <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+              {totpError}
+            </div>
+          )}
+          <button
+            type="submit"
+            disabled={submitting || totpCode.trim().length !== 6}
+            className="w-full rounded-md bg-gold px-4 py-2 font-medium text-white hover:bg-gold-dark disabled:opacity-50"
+          >
+            {submitting ? "Verifying..." : "Verify"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setTotpResolver(null);
+              setTotpCode("");
+              setTotpError(null);
+            }}
+            className="w-full text-xs text-neutral-500 hover:underline"
+          >
+            Back to log in
+          </button>
+        </form>
+      ) : (
+        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-neutral-700">Email</span>
           <input
@@ -153,7 +225,8 @@ export default function LoginPage() {
         >
           {submitting ? "Logging in..." : "Log in"}
         </button>
-      </form>
+        </form>
+      )}
 
       <p className="mt-6 text-sm text-neutral-600">
         Don&apos;t have an account?{" "}

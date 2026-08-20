@@ -5,6 +5,7 @@ import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { useAuth } from "@/context/AuthContext";
 import { RequireAuth } from "@/context/RequireAuth";
+import { TotpSetup } from "@/components/TotpSetup";
 
 function SettingsContent() {
   const { profile, firebaseUser, linkGoogleAccount, refreshProfile } = useAuth();
@@ -119,6 +120,11 @@ function SettingsContent() {
           </>
         )}
       </div>
+
+      <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-neutral-500">
+        Two-factor authentication
+      </h2>
+      <TotpSetup />
 
       <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-neutral-500">
         Notification preferences

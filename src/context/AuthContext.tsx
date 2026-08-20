@@ -19,6 +19,12 @@ import {
   sendEmailVerification,
   reload,
   updateProfile,
+  multiFactor,
+  TotpMultiFactorGenerator,
+  TotpSecret,
+  getMultiFactorResolver,
+  MultiFactorError,
+  MultiFactorResolver,
   User as FirebaseUser,
 } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
@@ -38,6 +44,11 @@ interface AuthContextValue {
   resetPassword: (email: string) => Promise<void>;
   resendVerificationEmail: () => Promise<void>;
   refreshEmailVerified: () => Promise<boolean>;
+  beginTotpEnrollment: () => Promise<TotpSecret>;
+  confirmTotpEnrollment: (secret: TotpSecret, verificationCode: string, displayName: string) => Promise<void>;
+  unenrollTotp: (factorUid: string) => Promise<void>;
+  getTotpResolver: (error: MultiFactorError) => MultiFactorResolver;
+  completeTotpSignIn: (resolver: MultiFactorResolver, verificationCode: string) => Promise<AppUser | null>;
   refreshProfile: () => Promise<void>;
 }
 
@@ -152,6 +163,64 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function login(email: string, password: string) {
     const credential = await signInWithEmailAndPassword(auth, email, password);
+    return loadProfile(credential.user.uid);
+  }
+
+  /**
+   * TOTP MFA enrollment - two steps, since the person needs to actually
+   * scan/enter the secret in their authenticator app before Firebase
+   * will confirm enrollment. beginTotpEnrollment generates the secret;
+   * the caller renders it as a QR code (or shows the raw secret as a
+   * manual-entry fallback) and later calls confirmTotpEnrollment with
+   * the 6-digit code the app then generates.
+   */
+  async function beginTotpEnrollment() {
+    if (!auth.currentUser) {
+      throw new Error("You must be signed in to set up an authenticator app.");
+    }
+    const session = await multiFactor(auth.currentUser).getSession();
+    return TotpMultiFactorGenerator.generateSecret(session);
+  }
+
+  async function confirmTotpEnrollment(
+    secret: TotpSecret,
+    verificationCode: string,
+    displayName: string
+  ) {
+    if (!auth.currentUser) {
+      throw new Error("You must be signed in to set up an authenticator app.");
+    }
+    const assertion = TotpMultiFactorGenerator.assertionForEnrollment(secret, verificationCode);
+    await multiFactor(auth.currentUser).enroll(assertion, displayName);
+  }
+
+  async function unenrollTotp(factorUid: string) {
+    if (!auth.currentUser) {
+      throw new Error("You must be signed in to manage your authenticator app.");
+    }
+    await multiFactor(auth.currentUser).unenroll(factorUid);
+  }
+
+  /**
+   * Called from the login page's catch block when signInWithEmailAndPassword
+   * throws auth/multi-factor-auth-required - the password was correct,
+   * but a second factor is enrolled and required. Returns the resolver
+   * needed to complete sign-in once the person enters their TOTP code.
+   */
+  function getTotpResolver(error: MultiFactorError): MultiFactorResolver {
+    return getMultiFactorResolver(auth, error);
+  }
+
+  async function completeTotpSignIn(
+    resolver: MultiFactorResolver,
+    verificationCode: string
+  ): Promise<AppUser | null> {
+    const enrolledFactor = resolver.hints.find((h) => h.factorId === TotpMultiFactorGenerator.FACTOR_ID);
+    if (!enrolledFactor) {
+      throw new Error("No authenticator app factor found for this account.");
+    }
+    const assertion = TotpMultiFactorGenerator.assertionForSignIn(enrolledFactor.uid, verificationCode);
+    const credential = await resolver.resolveSignIn(assertion);
     return loadProfile(credential.user.uid);
   }
 
@@ -278,6 +347,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         resetPassword,
         resendVerificationEmail,
         refreshEmailVerified,
+        beginTotpEnrollment,
+        confirmTotpEnrollment,
+        unenrollTotp,
+        getTotpResolver,
+        completeTotpSignIn,
         refreshProfile,
       }}
     >
