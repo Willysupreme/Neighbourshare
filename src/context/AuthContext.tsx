@@ -11,6 +11,7 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signInWithPopup,
+  linkWithPopup,
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
@@ -30,6 +31,7 @@ interface AuthContextValue {
   register: (input: RegisterInput) => Promise<AppUser | null>;
   login: (email: string, password: string) => Promise<AppUser | null>;
   loginWithGoogle: () => Promise<AppUser | null>;
+  linkGoogleAccount: () => Promise<void>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -179,6 +181,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  /**
+   * Links a Google account to the currently signed-in user (who signed
+   * up/in with email+password). Unlike loginWithGoogle, this does not
+   * create or load a new profile - the person is already signed in and
+   * already has one. Firebase tracks linked providers on the User object
+   * itself (firebaseUser.providerData) - no separate Firestore field
+   * needed, avoiding a second source of truth that could drift out of
+   * sync with what Firebase Auth actually has linked.
+   */
+  async function linkGoogleAccount(): Promise<void> {
+    if (!auth.currentUser) {
+      throw new Error("You must be signed in to link a Google account.");
+    }
+    if (googleSignInInFlight) {
+      throw Object.assign(new Error("A Google sign-in attempt is already in progress."), {
+        code: "auth/cancelled-popup-request",
+      });
+    }
+    googleSignInInFlight = true;
+    try {
+      const result = await linkWithPopup(auth.currentUser, new GoogleAuthProvider());
+      setFirebaseUser(result.user);
+    } finally {
+      googleSignInInFlight = false;
+    }
+  }
+
   async function logout() {
     await firebaseSignOut(auth);
     setProfile(null);
@@ -207,6 +236,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         register,
         login,
         loginWithGoogle,
+        linkGoogleAccount,
         logout,
         resetPassword,
         refreshProfile,
