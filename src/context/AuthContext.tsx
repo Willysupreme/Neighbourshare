@@ -22,6 +22,9 @@ import {
   multiFactor,
   TotpMultiFactorGenerator,
   TotpSecret,
+  PhoneAuthProvider,
+  PhoneMultiFactorGenerator,
+  RecaptchaVerifier,
   getMultiFactorResolver,
   MultiFactorError,
   MultiFactorResolver,
@@ -46,9 +49,17 @@ interface AuthContextValue {
   refreshEmailVerified: () => Promise<boolean>;
   beginTotpEnrollment: () => Promise<TotpSecret>;
   confirmTotpEnrollment: (secret: TotpSecret, verificationCode: string, displayName: string) => Promise<void>;
-  unenrollTotp: (factorUid: string) => Promise<void>;
-  getTotpResolver: (error: MultiFactorError) => MultiFactorResolver;
+  unenrollMfaFactor: (factorUid: string) => Promise<void>;
+  getMfaResolver: (error: MultiFactorError) => MultiFactorResolver;
   completeTotpSignIn: (resolver: MultiFactorResolver, verificationCode: string) => Promise<AppUser | null>;
+  beginPhoneMfaEnrollment: (phoneNumber: string, recaptchaContainerId: string) => Promise<string>;
+  confirmPhoneMfaEnrollment: (verificationId: string, verificationCode: string, displayName: string) => Promise<void>;
+  beginPhoneMfaChallenge: (resolver: MultiFactorResolver, recaptchaContainerId: string) => Promise<string>;
+  completePhoneMfaSignIn: (
+    resolver: MultiFactorResolver,
+    verificationId: string,
+    verificationCode: string
+  ) => Promise<AppUser | null>;
   refreshProfile: () => Promise<void>;
 }
 
@@ -194,7 +205,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await multiFactor(auth.currentUser).enroll(assertion, displayName);
   }
 
-  async function unenrollTotp(factorUid: string) {
+  async function unenrollMfaFactor(factorUid: string) {
     if (!auth.currentUser) {
       throw new Error("You must be signed in to manage your authenticator app.");
     }
@@ -204,10 +215,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   /**
    * Called from the login page's catch block when signInWithEmailAndPassword
    * throws auth/multi-factor-auth-required - the password was correct,
-   * but a second factor is enrolled and required. Returns the resolver
-   * needed to complete sign-in once the person enters their TOTP code.
+   * but a second factor is enrolled and required. Not specific to any
+   * one factor type - the resolver's hints list is checked by the
+   * caller to determine which challenge UI (TOTP code entry, or phone
+   * SMS) to show.
    */
-  function getTotpResolver(error: MultiFactorError): MultiFactorResolver {
+  function getMfaResolver(error: MultiFactorError): MultiFactorResolver {
     return getMultiFactorResolver(auth, error);
   }
 
@@ -222,6 +235,70 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const assertion = TotpMultiFactorGenerator.assertionForSignIn(enrolledFactor.uid, verificationCode);
     const credential = await resolver.resolveSignIn(assertion);
     return loadProfile(credential.user.uid);
+  }
+
+  /**
+   * Phone MFA, an alternative to TOTP. Firebase requires a reCAPTCHA
+   * verifier for any phone-based flow (enrollment AND the sign-in
+   * challenge) - the caller must have a real DOM element with the given
+   * id already mounted (invisible is fine) before calling either of
+   * these. A fresh RecaptchaVerifier is created per call and cleared
+   * immediately after use, since each is a one-shot verification, not a
+   * persistent widget.
+   */
+  async function beginPhoneMfaEnrollment(phoneNumber: string, recaptchaContainerId: string): Promise<string> {
+    if (!auth.currentUser) {
+      throw new Error("You must be signed in to set up phone verification.");
+    }
+    const verifier = new RecaptchaVerifier(auth, recaptchaContainerId, { size: "invisible" });
+    try {
+      const session = await multiFactor(auth.currentUser).getSession();
+      const phoneAuthProvider = new PhoneAuthProvider(auth);
+      return await phoneAuthProvider.verifyPhoneNumber({ phoneNumber, session }, verifier);
+    } finally {
+      verifier.clear();
+    }
+  }
+
+  async function confirmPhoneMfaEnrollment(
+    verificationId: string,
+    verificationCode: string,
+    displayName: string
+  ) {
+    if (!auth.currentUser) {
+      throw new Error("You must be signed in to set up phone verification.");
+    }
+    const credential = PhoneAuthProvider.credential(verificationId, verificationCode);
+    const assertion = PhoneMultiFactorGenerator.assertion(credential);
+    await multiFactor(auth.currentUser).enroll(assertion, displayName);
+  }
+
+  async function beginPhoneMfaChallenge(
+    resolver: MultiFactorResolver,
+    recaptchaContainerId: string
+  ): Promise<string> {
+    const hint = resolver.hints.find((h) => h.factorId === PhoneMultiFactorGenerator.FACTOR_ID);
+    if (!hint) {
+      throw new Error("No phone factor found for this account.");
+    }
+    const verifier = new RecaptchaVerifier(auth, recaptchaContainerId, { size: "invisible" });
+    try {
+      const phoneAuthProvider = new PhoneAuthProvider(auth);
+      return await phoneAuthProvider.verifyPhoneNumber({ multiFactorHint: hint, session: resolver.session }, verifier);
+    } finally {
+      verifier.clear();
+    }
+  }
+
+  async function completePhoneMfaSignIn(
+    resolver: MultiFactorResolver,
+    verificationId: string,
+    verificationCode: string
+  ): Promise<AppUser | null> {
+    const credential = PhoneAuthProvider.credential(verificationId, verificationCode);
+    const assertion = PhoneMultiFactorGenerator.assertion(credential);
+    const userCredential = await resolver.resolveSignIn(assertion);
+    return loadProfile(userCredential.user.uid);
   }
 
   /**
@@ -349,9 +426,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         refreshEmailVerified,
         beginTotpEnrollment,
         confirmTotpEnrollment,
-        unenrollTotp,
-        getTotpResolver,
+        unenrollMfaFactor,
+        getMfaResolver,
         completeTotpSignIn,
+        beginPhoneMfaEnrollment,
+        confirmPhoneMfaEnrollment,
+        beginPhoneMfaChallenge,
+        completePhoneMfaSignIn,
         refreshProfile,
       }}
     >

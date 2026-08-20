@@ -7,9 +7,22 @@ import { useAuth } from "@/context/AuthContext";
 import { loginSchema } from "@/lib/validation/schemas";
 import { getPostAuthRedirect } from "@/lib/postAuthRedirect";
 import type { MultiFactorError, MultiFactorResolver } from "firebase/auth";
+import { PhoneMultiFactorGenerator, TotpMultiFactorGenerator } from "firebase/auth";
+
+const RECAPTCHA_CONTAINER_ID = "login-recaptcha-container";
 
 export default function LoginPage() {
-  const { login, resetPassword, firebaseUser, profile, loading, getTotpResolver, completeTotpSignIn } = useAuth();
+  const {
+    login,
+    resetPassword,
+    firebaseUser,
+    profile,
+    loading,
+    getMfaResolver,
+    completeTotpSignIn,
+    beginPhoneMfaChallenge,
+    completePhoneMfaSignIn,
+  } = useAuth();
   const router = useRouter();
 
   const [email, setEmail] = useState("");
@@ -19,9 +32,17 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [resetMode, setResetMode] = useState(false);
   const [resetSent, setResetSent] = useState(false);
-  const [totpResolver, setTotpResolver] = useState<MultiFactorResolver | null>(null);
-  const [totpCode, setTotpCode] = useState("");
-  const [totpError, setTotpError] = useState<string | null>(null);
+
+  // MFA challenge state - factorType determines which challenge UI shows.
+  // For phone, verificationId is set once beginPhoneMfaChallenge has
+  // actually sent the SMS (a separate step from TOTP, which needs no
+  // "send" step at all - the code already exists in the person's app).
+  const [resolver, setResolver] = useState<MultiFactorResolver | null>(null);
+  const [factorType, setFactorType] = useState<"totp" | "phone" | null>(null);
+  const [phoneVerificationId, setPhoneVerificationId] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState("");
+  const [mfaError, setMfaError] = useState<string | null>(null);
+  const [sendingCode, setSendingCode] = useState(false);
 
   useEffect(() => {
     if (!loading && firebaseUser) {
@@ -74,11 +95,22 @@ export default function LoginPage() {
     } catch (err) {
       const code = (err as { code?: string })?.code;
       if (code === "auth/multi-factor-auth-required") {
-        // Password was correct - a second factor (authenticator app) is
-        // required to finish signing in. Not an error; switch to the
-        // TOTP challenge step instead of showing a failure message.
-        setTotpResolver(getTotpResolver(err as MultiFactorError));
+        // Password was correct - a second factor is required to finish
+        // signing in. Not an error; switch to the appropriate challenge
+        // step instead of showing a failure message.
+        const mfaResolver = getMfaResolver(err as MultiFactorError);
+        const hasPhone = mfaResolver.hints.some((h) => h.factorId === PhoneMultiFactorGenerator.FACTOR_ID);
+        const hasTotp = mfaResolver.hints.some((h) => h.factorId === TotpMultiFactorGenerator.FACTOR_ID);
+        setResolver(mfaResolver);
         setSubmitting(false);
+        if (hasTotp) {
+          // Prefer TOTP if both are somehow enrolled - no SMS round-trip
+          // needed, so it resolves faster for the person.
+          setFactorType("totp");
+        } else if (hasPhone) {
+          setFactorType("phone");
+          await sendPhoneCode(mfaResolver);
+        }
         return;
       }
       const { message, isCredentialIssue } = mapFirebaseError(err);
@@ -89,24 +121,49 @@ export default function LoginPage() {
     }
   }
 
-  async function handleTotpSubmit(e: FormEvent) {
+  async function sendPhoneCode(activeResolver: MultiFactorResolver) {
+    setMfaError(null);
+    setSendingCode(true);
+    try {
+      const id = await beginPhoneMfaChallenge(activeResolver, RECAPTCHA_CONTAINER_ID);
+      setPhoneVerificationId(id);
+    } catch (err) {
+      console.error("[LoginPage] beginPhoneMfaChallenge failed:", err);
+      setMfaError("Couldn't send a verification code. Please try again.");
+    } finally {
+      setSendingCode(false);
+    }
+  }
+
+  async function handleMfaSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!totpResolver) return;
-    setTotpError(null);
+    if (!resolver) return;
+    setMfaError(null);
     setSubmitting(true);
     try {
-      const profile = await completeTotpSignIn(totpResolver, totpCode.trim());
+      const profile =
+        factorType === "totp"
+          ? await completeTotpSignIn(resolver, mfaCode.trim())
+          : await completePhoneMfaSignIn(resolver, phoneVerificationId ?? "", mfaCode.trim());
       router.push(getPostAuthRedirect(profile));
     } catch (err) {
       const code = (err as { code?: string })?.code;
       if (code === "auth/invalid-verification-code") {
-        setTotpError("That code doesn't look right. Check your authenticator app and try again.");
+        setMfaError("That code doesn't look right. Please try again.");
       } else {
-        setTotpError("Something went wrong. Please try again.");
+        setMfaError("Something went wrong. Please try again.");
       }
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function cancelMfa() {
+    setResolver(null);
+    setFactorType(null);
+    setPhoneVerificationId(null);
+    setMfaCode("");
+    setMfaError(null);
   }
 
   return (
@@ -114,117 +171,121 @@ export default function LoginPage() {
       <h1 className="display-heading text-3xl">Log in</h1>
       <p className="mt-1 text-sm text-neutral-600">Welcome back to NeighborShare.</p>
 
-      {totpResolver ? (
-        <form onSubmit={handleTotpSubmit} className="mt-6 space-y-4">
+      {/* Always mounted (invisible), needed for the phone MFA challenge -
+          Firebase's RecaptchaVerifier requires a real DOM element to
+          attach to before it can be constructed. */}
+      <div id={RECAPTCHA_CONTAINER_ID} />
+
+      {resolver ? (
+        <form onSubmit={handleMfaSubmit} className="mt-6 space-y-4">
           <p className="text-sm text-neutral-600">
-            Enter the 6-digit code from your authenticator app.
+            {factorType === "totp"
+              ? "Enter the 6-digit code from your authenticator app."
+              : sendingCode
+                ? "Sending a verification code to your phone..."
+                : phoneVerificationId
+                  ? "Enter the code we texted you."
+                  : "Couldn't send a code."}
           </p>
           <input
             className="input"
-            value={totpCode}
-            onChange={(e) => setTotpCode(e.target.value)}
+            value={mfaCode}
+            onChange={(e) => setMfaCode(e.target.value)}
             maxLength={6}
             inputMode="numeric"
             placeholder="123456"
+            disabled={factorType === "phone" && !phoneVerificationId}
             autoFocus
           />
-          {totpError && (
+          {mfaError && (
             <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
-              {totpError}
+              {mfaError}
             </div>
           )}
           <button
             type="submit"
-            disabled={submitting || totpCode.trim().length !== 6}
+            disabled={submitting || mfaCode.trim().length !== 6 || (factorType === "phone" && !phoneVerificationId)}
             className="w-full rounded-md bg-gold px-4 py-2 font-medium text-white hover:bg-gold-dark disabled:opacity-50"
           >
             {submitting ? "Verifying..." : "Verify"}
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              setTotpResolver(null);
-              setTotpCode("");
-              setTotpError(null);
-            }}
-            className="w-full text-xs text-neutral-500 hover:underline"
-          >
+          <button type="button" onClick={cancelMfa} className="w-full text-xs text-neutral-500 hover:underline">
             Back to log in
           </button>
         </form>
       ) : (
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium text-neutral-700">Email</span>
-          <input
-            className="input"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-          />
-        </label>
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-neutral-700">Email</span>
+            <input
+              className="input"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+            />
+          </label>
 
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium text-neutral-700">Password</span>
-          <input
-            className="input"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-          />
-        </label>
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-neutral-700">Password</span>
+            <input
+              className="input"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+            />
+          </label>
 
-        <button
-          type="button"
-          onClick={() => setResetMode((m) => !m)}
-          className="text-xs text-leaf hover:underline"
-        >
-          Forgot password?
-        </button>
+          <button
+            type="button"
+            onClick={() => setResetMode((m) => !m)}
+            className="text-xs text-leaf hover:underline"
+          >
+            Forgot password?
+          </button>
 
-        {resetMode && (
-          <div className="rounded-md bg-neutral-50 p-3">
-            {resetSent ? (
-              <p className="text-sm text-leaf">
-                If an account exists for that email, a reset link is on its way.
-              </p>
-            ) : (
-              <button
-                type="button"
-                onClick={handleReset}
-                disabled={submitting}
-                className="btn-secondary text-sm"
-              >
-                {submitting ? "Sending..." : `Send reset link to ${email || "this address"}`}
-              </button>
-            )}
-          </div>
-        )}
+          {resetMode && (
+            <div className="rounded-md bg-neutral-50 p-3">
+              {resetSent ? (
+                <p className="text-sm text-leaf">
+                  If an account exists for that email, a reset link is on its way.
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  disabled={submitting}
+                  className="btn-secondary text-sm"
+                >
+                  {submitting ? "Sending..." : `Send reset link to ${email || "this address"}`}
+                </button>
+              )}
+            </div>
+          )}
 
-        {error && (
-          <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
-            <p>{error}</p>
-            {isCredentialError && (
-              <p className="mt-1">
-                New here?{" "}
-                <Link href="/register" className="font-medium underline">
-                  Create an account
-                </Link>{" "}
-                instead.
-              </p>
-            )}
-          </div>
-        )}
+          {error && (
+            <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+              <p>{error}</p>
+              {isCredentialError && (
+                <p className="mt-1">
+                  New here?{" "}
+                  <Link href="/register" className="font-medium underline">
+                    Create an account
+                  </Link>{" "}
+                  instead.
+                </p>
+              )}
+            </div>
+          )}
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full rounded-md bg-gold px-4 py-2 font-medium text-white hover:bg-gold-dark disabled:opacity-50"
-        >
-          {submitting ? "Logging in..." : "Log in"}
-        </button>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full rounded-md bg-gold px-4 py-2 font-medium text-white hover:bg-gold-dark disabled:opacity-50"
+          >
+            {submitting ? "Logging in..." : "Log in"}
+          </button>
         </form>
       )}
 

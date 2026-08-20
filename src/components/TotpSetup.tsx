@@ -6,7 +6,7 @@ import { multiFactor, TotpMultiFactorGenerator, TotpSecret } from "firebase/auth
 import { useAuth } from "@/context/AuthContext";
 
 export function TotpSetup() {
-  const { firebaseUser, beginTotpEnrollment, confirmTotpEnrollment, unenrollTotp } = useAuth();
+  const { firebaseUser, beginTotpEnrollment, confirmTotpEnrollment, unenrollMfaFactor } = useAuth();
   const [enrolling, setEnrolling] = useState(false);
   const [secret, setSecret] = useState<TotpSecret | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
@@ -74,7 +74,7 @@ export function TotpSetup() {
     if (!window.confirm("Remove your authenticator app? You'll no longer be asked for a code at sign-in.")) return;
     setRemoving(true);
     try {
-      await unenrollTotp(enrolledFactor.uid);
+      await unenrollMfaFactor(enrolledFactor.uid);
     } catch (err) {
       console.error("[TotpSetup] unenrollTotp failed:", err);
       setError("Couldn't remove the authenticator app. Please try again.");
