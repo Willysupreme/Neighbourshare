@@ -10,9 +10,7 @@ import {
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
-  signInWithRedirect,
   signInWithPopup,
-  getRedirectResult,
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
@@ -32,20 +30,12 @@ interface AuthContextValue {
   register: (input: RegisterInput) => Promise<AppUser | null>;
   login: (email: string, password: string) => Promise<AppUser | null>;
   loginWithGoogle: () => Promise<AppUser | null>;
-  completeGoogleRedirect: () => Promise<AppUser | null>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-
-class PopupTimeoutError extends Error {
-  constructor() {
-    super("Google sign-in popup did not complete within the expected time.");
-    this.name = "PopupTimeoutError";
-  }
-}
 
 let googleSignInInFlight = false;
 
@@ -127,34 +117,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   /**
-   * Google sign-in now tries signInWithPopup everywhere (previously
-   * environment-aware: popup locally, redirect in production, because
-   * Vercel's platform-level COOP header broke popup's window.closed
-   * detection there). An explicit app-level COOP header
-   * (same-origin-allow-popups, see next.config.ts) has since been added,
-   * which should address that - but this cannot be verified from a
-   * sandbox against Vercel's actual live behaviour, so popup is not
-   * trusted unconditionally in production: it falls back to
-   * signInWithRedirect (the previously-confirmed-working production
-   * path) if popup fails.
+   * Popup-only, deliberately simple. Previously environment-aware (popup
+   * locally, redirect in production) with a redirect fallback layered on
+   * top (timeout race + sessionStorage flag + completeGoogleRedirect) to
+   * handle popup failing. That whole fallback system is removed: this
+   * app already has a fallback sign-in method sitting right next to the
+   * Google button on the same page (email/password), so a fallback
+   * *inside* loginWithGoogle was solving a problem the page already
+   * solves at a simpler layer. If popup is ever blocked, the person sees
+   * a clear error and can use email/password instead, rather than the
+   * app silently attempting a full-page redirect on their behalf.
    *
-   * Two distinct failure modes are handled, not just one:
-   * 1. signInWithPopup rejects with a clear error (auth/popup-blocked,
-   *    auth/network-request-failed) - caught normally.
-   * 2. A COOP-broken popup does NOT always throw - it can leave
-   *    signInWithPopup's promise simply never resolving, because the
-   *    underlying window.closed check it depends on never fires. A plain
-   *    try/catch cannot detect this. Raced against a generous timeout
-   *    (15s) specifically to catch this silent-hang case, not used as a
-   *    general-purpose "assume it's done" synchronisation hack.
-   *
-   * auth/popup-closed-by-user and auth/cancelled-popup-request are
-   * deliberate user actions, not technical failures - these do NOT fall
-   * back to redirect (that would unexpectedly full-page-navigate someone
-   * who just closed a popup on purpose).
+   * This also makes the root cause of this whole investigation
+   * ("Database is closing/hidden") structurally impossible now, not
+   * just avoided: getRedirectResult() is never called anywhere in this
+   * app, so there is no second Firebase Auth operation that could ever
+   * race with signInWithPopup's own IndexedDB usage.
    */
-  const GOOGLE_REDIRECT_PENDING_KEY = "neighborshare_google_redirect_pending";
-
   async function handleGoogleUser(user: FirebaseUser): Promise<AppUser | null> {
     const existing = await getDoc(doc(db, "users", user.uid));
     if (!existing.exists()) {
@@ -164,13 +143,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function loginWithGoogle(): Promise<AppUser | null> {
-    // Reentrancy guard, independent of GoogleAuthButton's own disabled-
-    // while-busy UI state - protects any caller of this function, not
-    // just clicks on one specific button, from triggering a second
-    // concurrent signInWithPopup while one is already in flight. This
-    // matters specifically here: two concurrent Firebase Auth operations
-    // contending for the same IndexedDB persistence layer is exactly the
-    // class of problem this whole investigation has been about.
+    // Reentrancy guard - protects any caller of this function, not just
+    // one button's own disabled-while-busy UI state, from triggering a
+    // second concurrent signInWithPopup while one is already in flight.
     if (googleSignInInFlight) {
       throw Object.assign(new Error("A Google sign-in attempt is already in progress."), {
         code: "auth/cancelled-popup-request",
@@ -178,15 +153,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     googleSignInInFlight = true;
 
-    const provider = new GoogleAuthProvider();
-
     try {
-      const result = await Promise.race([
-        signInWithPopup(auth, provider),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new PopupTimeoutError()), 15000)
-        ),
-      ]);
+      const result = await signInWithPopup(auth, new GoogleAuthProvider());
       // Explicitly sync context state here rather than waiting for
       // onAuthStateChanged's independent async listener to catch up -
       // without this, redirecting to a protected page immediately after
@@ -206,52 +174,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         (tagged as Error & { stage?: string }).stage = "profile";
         throw tagged;
       }
-    } catch (err) {
-      const code = (err as { code?: string })?.code;
-      const isTimeout = err instanceof PopupTimeoutError;
-      const shouldFallBackToRedirect =
-        isTimeout || code === "auth/popup-blocked" || code === "auth/network-request-failed";
-
-      if (!shouldFallBackToRedirect) {
-        throw err;
-      }
-
-      // Signal to completeGoogleRedirect (checked on the next page load,
-      // after Google redirects back) that a redirect was genuinely
-      // initiated here - without this flag, an unconditional
-      // getRedirectResult() call on every mount would race with
-      // signInWithPopup's own IndexedDB usage on the normal, common
-      // popup path, reintroducing the exact "Database is closing/hidden"
-      // bug this flag-based approach is specifically designed to avoid.
-      sessionStorage.setItem(GOOGLE_REDIRECT_PENDING_KEY, "1");
-      await signInWithRedirect(auth, provider);
-      return null;
     } finally {
       googleSignInInFlight = false;
     }
-  }
-
-  /**
-   * Call this once on mount of any page that offers Google sign-in.
-   * Checks GOOGLE_REDIRECT_PENDING_KEY BEFORE calling getRedirectResult
-   * at all - on the normal, common path (popup succeeded, no fallback
-   * was ever triggered), this flag is absent and getRedirectResult is
-   * skipped entirely. This is what preserves the confirmed fix for the
-   * "Database is closing/hidden" bug: an unconditional getRedirectResult
-   * call on every mount was found (via live testing) to race with
-   * signInWithPopup's own IndexedDB usage. Only when the flag is present
-   * - meaning loginWithGoogle genuinely fell back to signInWithRedirect
-   * moments before this page loaded - is getRedirectResult called, which
-   * is safe at that point since no popup is concurrently active.
-   */
-  async function completeGoogleRedirect(): Promise<AppUser | null> {
-    if (typeof window === "undefined" || !sessionStorage.getItem(GOOGLE_REDIRECT_PENDING_KEY)) {
-      return null;
-    }
-    sessionStorage.removeItem(GOOGLE_REDIRECT_PENDING_KEY);
-    const result = await getRedirectResult(auth);
-    if (!result) return null;
-    return handleGoogleUser(result.user);
   }
 
   async function logout() {
@@ -282,7 +207,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         register,
         login,
         loginWithGoogle,
-        completeGoogleRedirect,
         logout,
         resetPassword,
         refreshProfile,
